@@ -688,8 +688,20 @@ sealed class MainForm : Form
         advancedGroup.Dock = DockStyle.None;
         advancedGroup.Height = 560;
         advancedGroup.Visible = false;
+        var advancedContent = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(8, 12, 8, 6),
+            Margin = Padding.Empty
+        };
+        advancedContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        advancedContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
         var advanced = VerticalPanel(false);
-        advanced.Padding = new Padding(8, 14, 8, 4);
+        advanced.Padding = new Padding(8, 4, 18, 4);
+        var advancedRoute = VerticalPanel(false);
+        advancedRoute.Padding = new Padding(18, 4, 8, 4);
         var delay = Number(profile.TeleportToSpotDelayMs, 100, 10_000, 100, 90);
         var teleportRetries = Number(profile.TeleportRetryCount, 1, 20, 1, 90);
         var rearmDelay = Number(profile.RearmDelayMs, 1000, 60_000, 500, 90);
@@ -702,7 +714,9 @@ sealed class MainForm : Form
         advanced.Controls.Add(OptionLine("Barra estável por (ms):", stableTime));
         advanced.Controls.Add(new Label { Text = "BARRA DE VIDA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 10, 3, 2) });
         advanced.Controls.Add(barStatus);
-        advancedGroup.Controls.Add(advanced);
+        advancedContent.Controls.Add(advanced, 0, 0);
+        advancedContent.Controls.Add(advancedRoute, 1, 0);
+        advancedGroup.Controls.Add(advancedContent);
         var advancedArea = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -901,18 +915,18 @@ sealed class MainForm : Form
         root.Controls.Add(spotsGroup, 1, 0);
 
         markers.Dock = DockStyle.None;
-        markers.Height = 58;
+        markers.Height = 72;
         markerTools.Dock = DockStyle.None;
         markerTools.Height = 38;
-        advanced.Controls.Add(new Label
+        advancedRoute.Controls.Add(new Label
         {
             Text = "MARCAÇÕES DA ROTA",
             AutoSize = true,
             ForeColor = Gold,
-            Margin = new Padding(3, 12, 3, 3)
+            Margin = new Padding(3, 4, 3, 3)
         });
-        advanced.Controls.Add(markers);
-        advanced.Controls.Add(markerTools);
+        advancedRoute.Controls.Add(markers);
+        advancedRoute.Controls.Add(markerTools);
 
         var stateGroup = Group("⌁  SESSÃO");
         stateGroup.Name = "SessionGroup";
@@ -925,8 +939,8 @@ sealed class MainForm : Form
         };
         stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        stateFlow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        stateFlow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        stateFlow.RowStyles.Add(new RowStyle(SizeType.Percent, 64));
+        stateFlow.RowStyles.Add(new RowStyle(SizeType.Percent, 36));
         var state = new Label { Text = "PARADA", AutoSize = true, ForeColor = Acid, Font = new Font("Arial Narrow", 13F, FontStyle.Bold) };
         var progress = new Label { AutoSize = true, ForeColor = Water, MaximumSize = new Size(360, 0) };
         var detected = new Label { Text = "Barra ainda não calibrada.", AutoSize = true, ForeColor = Acid, MaximumSize = new Size(360, 0) };
@@ -992,11 +1006,11 @@ sealed class MainForm : Form
         sessionLayout.Controls.Add(sessionSettings, 0, 1);
         sessionSettings.VisibleChanged += (_, _) =>
             sessionLayout.RowStyles[1].Height = sessionSettings.Visible ? 62 : 0;
-        advanced.Controls.Add(new Label { Text = "TESTES DE COMPATIBILIDADE", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 8, 3, 2) });
+        advancedRoute.Controls.Add(new Label { Text = "TESTES DE COMPATIBILIDADE", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 12, 3, 2) });
         var compatibilityTests = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         compatibilityTests.Controls.AddRange([backgroundTest, backgroundCaptureTest]);
-        advanced.Controls.Add(compatibilityTests);
-        advanced.Controls.Add(captureStatus);
+        advancedRoute.Controls.Add(compatibilityTests);
+        advancedRoute.Controls.Add(captureStatus);
         stateGroup.Controls.Add(sessionLayout);
         root.Controls.Add(stateGroup, 1, 1);
 
@@ -1008,6 +1022,7 @@ sealed class MainForm : Form
             var compact = root.ClientSize.Width < 1100;
             selectBar.Text = compact ? "⌖  MARCAR" : "⌖  MARCAR BARRA";
         };
+        advancedRoute.SizeChanged += (_, _) => ResizeAdvancedRoute();
         viewport.Controls.Add(root);
         page.Controls.Add(viewport);
 
@@ -1164,8 +1179,14 @@ sealed class MainForm : Form
         {
             var width = Math.Max(500, root.ClientSize.Width - 42);
             advancedGroup.Width = width;
-            markers.Width = Math.Max(460, width - 46);
-            markerTools.Width = Math.Max(460, width - 46);
+            ResizeAdvancedRoute();
+        }
+
+        void ResizeAdvancedRoute()
+        {
+            var width = Math.Max(420, advancedRoute.ClientSize.Width - 16);
+            markers.Width = width;
+            markerTools.Width = width;
         }
 
         void SaveSessionLimit()
@@ -1204,7 +1225,6 @@ sealed class MainForm : Form
         Padding = new Padding(12, 30, 12, 12),
         BackColor = InkSoft,
         ForeColor = Bone,
-        Font = new Font("Arial Narrow", 14F, FontStyle.Bold)
     };
 
     static Label StepStatus() => new()
@@ -1478,6 +1498,8 @@ sealed class MainForm : Form
 
     sealed class ModuleCard : GroupBox
     {
+        readonly Font _titleFont = new("Arial Narrow", 14F, FontStyle.Bold);
+
         public ModuleCard()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -1491,9 +1513,16 @@ sealed class MainForm : Form
             using var path = RoundedPath(new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3)), 16);
             using var fill = new SolidBrush(BackColor);
             eventArgs.Graphics.FillPath(fill, path);
-            TextRenderer.DrawText(eventArgs.Graphics, Text, Font,
+            TextRenderer.DrawText(eventArgs.Graphics, Text, _titleFont,
                 new Rectangle(20, 10, Math.Max(0, Width - 40), 28), ForeColor,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _titleFont.Dispose();
+            base.Dispose(disposing);
         }
     }
 

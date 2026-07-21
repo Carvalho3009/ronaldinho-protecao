@@ -1,8 +1,10 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 1.2.1 — Dibre a concorrência**
+**Versão 1.2.2 — Dibre a concorrência**
 
 A visão geral exibe somente os status. Use os menus laterais para abrir a configuração de Janela, Barra de vida, Teleporte, Rota de spots, Sessão ou as opções avançadas.
+
+Nesta versão, os módulos não herdam mais a fonte dos títulos, as opções avançadas foram distribuídas em duas colunas responsivas e os status permanecem visíveis também no tamanho mínimo da janela.
 
 Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e pode executar uma sequência de teleporte e spots quando a vida cair além do limite configurado.
 

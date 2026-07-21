@@ -5,6 +5,21 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Contains("--visual-test", StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                ApplicationConfiguration.Initialize();
+                RunVisualTest();
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                File.WriteAllText(Path.Combine(Path.GetTempPath(), "ControlarTela-visual-test-error.txt"), exception.ToString());
+                return 1;
+            }
+        }
+
         if (args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
         {
             try
@@ -107,6 +122,46 @@ static class Program
         ApplicationConfiguration.Initialize();
         Application.Run(new MainForm());
         return 0;
+    }
+
+    static void RunVisualTest()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "ControlarTela-visual-test");
+        Directory.CreateDirectory(output);
+        using var form = new MainForm(false)
+        {
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(-32000, -32000),
+            ShowInTaskbar = false
+        };
+        form.Show();
+        var scale = form.DeviceDpi / 96F;
+        CaptureSet("wide", 1280, 720);
+        CaptureSet("compact", 1100, 680);
+
+        void CaptureSet(string prefix, int width, int height)
+        {
+            form.Size = new Size((int)(width * scale), (int)(height * scale));
+            Application.DoEvents();
+            CaptureSection("VISÃO GERAL", $"{prefix}-overview");
+            CaptureSection("BARRA DE VIDA", $"{prefix}-life");
+            CaptureSection("ROTA DE SPOTS", $"{prefix}-spots");
+            CaptureSection("CONFIGURAÇÕES", $"{prefix}-advanced");
+        }
+
+        void CaptureSection(string navigationText, string fileName)
+        {
+            FindAll(form).OfType<Button>().First(button => button.Text.Contains(navigationText)).PerformClick();
+            Application.DoEvents();
+            Capture(fileName);
+        }
+
+        void Capture(string fileName)
+        {
+            using var bitmap = new Bitmap(form.ClientSize.Width, form.ClientSize.Height);
+            form.DrawToBitmap(bitmap, form.ClientRectangle);
+            bitmap.Save(Path.Combine(output, $"{fileName}.png"));
+        }
     }
 
     static Control RequiredVisible(Control root, string name) =>
