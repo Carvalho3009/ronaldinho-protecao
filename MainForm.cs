@@ -110,7 +110,7 @@ sealed class MainForm : Form
             Margin = Padding.Empty,
             BackColor = Ink
         };
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 170));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 184));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
 
@@ -123,7 +123,7 @@ sealed class MainForm : Form
             Padding = new Padding(18, 12, 18, 4),
             BackColor = Ink
         };
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var topActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1 };
         topActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -222,6 +222,7 @@ sealed class MainForm : Form
         Controls.Add(shell);
 
         AddNav("⌂", "VISÃO GERAL", null);
+        AddNav("▣", "JANELA", "WindowHeader");
         AddNav("♡", "BARRA DE VIDA", "LifeModule");
         AddNav("◉", "TELEPORTE", "TeleportModule");
         AddNav("⌖", "ROTA DE SPOTS", "SpotsModule");
@@ -256,6 +257,9 @@ sealed class MainForm : Form
             }
             pages[selected].BringToFront();
             windowHeaders[selected].BringToFront();
+            ShowOverview(pages[selected]);
+            SetWindowSettings(false);
+            ActiveViewport().AutoScrollPosition = Point.Empty;
             SelectNavigation(navButtons.FirstOrDefault() ?? new Button());
         }
 
@@ -275,27 +279,129 @@ sealed class MainForm : Form
                 SelectNavigation(button);
                 var activePage = pages.First(page => page.Visible);
                 var activeAdvancedToggle = activePage.Controls.Find("AdvancedToggle", true).OfType<CheckBox>().First();
+                ActiveViewport().AutoScrollPosition = Point.Empty;
                 if (target != "AdvancedGroup" && activeAdvancedToggle.Checked)
                     activeAdvancedToggle.Checked = false;
-                if (target is null)
+                if (target == "WindowHeader")
                 {
-                    ActiveViewport().AutoScrollPosition = Point.Empty;
+                    SetWindowSettings(true);
+                    HideModules(activePage);
+                    SetModuleSettings(activePage, null);
                     return;
                 }
-                var control = pages.First(page => page.Visible).Controls.Find(target, true).FirstOrDefault();
-                if (control is null)
-                    return;
+                SetWindowSettings(false);
                 if (target == "AdvancedGroup")
                 {
+                    SetModuleSettings(activePage, null);
+                    HideModules(activePage);
                     activeAdvancedToggle.Checked = true;
+                    var root = activePage.Controls.Find("ProfileLayout", true).OfType<TableLayoutPanel>().First();
+                    root.RowStyles[0].Height = 0;
+                    root.RowStyles[1].Height = 0;
+                    root.RowStyles[2].Height = 610;
+                    root.Height = 610;
+                    var advanced = activePage.Controls.Find(target, true).FirstOrDefault();
+                    if (advanced is not null)
+                        ActiveViewport().ScrollControlIntoView(advanced);
+                    return;
                 }
-                ActiveViewport().ScrollControlIntoView(control);
+                if (target is null)
+                    ShowOverview(activePage);
+                else
+                    FocusModule(activePage, target);
             };
             navButtons.Add(button);
             nav.Controls.Add(button);
         }
 
         Panel ActiveViewport() => pages.First(page => page.Visible).Controls.Find("Viewport", true).OfType<Panel>().First();
+
+        void SetWindowSettings(bool visible)
+        {
+            content.RowStyles[0].Height = visible ? 184 : 90;
+            for (var index = 0; index < windowHeaders.Count; index++)
+                windowHeaders[index].Visible = visible && pages[index].Visible;
+        }
+
+        static void ShowOverview(Panel page)
+        {
+            var advancedToggle = page.Controls.Find("AdvancedToggle", true).OfType<CheckBox>().First();
+            if (advancedToggle.Checked)
+                advancedToggle.Checked = false;
+            RestoreModules(page);
+            SetModuleSettings(page, null);
+        }
+
+        static void RestoreModules(Panel page)
+        {
+            var root = page.Controls.Find("ProfileLayout", true).OfType<TableLayoutPanel>().First();
+            var placements = new[]
+            {
+                (Name: "LifeModule", Column: 0, Row: 0),
+                (Name: "SpotsModule", Column: 1, Row: 0),
+                (Name: "TeleportModule", Column: 0, Row: 1),
+                (Name: "SessionGroup", Column: 1, Row: 1)
+            };
+            root.SuspendLayout();
+            foreach (var placement in placements)
+            {
+                var module = page.Controls.Find(placement.Name, true).First();
+                module.Visible = true;
+                root.SetCellPosition(module, new TableLayoutPanelCellPosition(placement.Column, placement.Row));
+                root.SetColumnSpan(module, 1);
+            }
+            root.RowStyles[0].Height = 410;
+            root.RowStyles[1].Height = 270;
+            if (root.RowStyles[2].Height == 0)
+                root.Height = 680;
+            root.ResumeLayout(true);
+        }
+
+        static void FocusModule(Panel page, string target)
+        {
+            RestoreModules(page);
+            SetModuleSettings(page, target);
+            var root = page.Controls.Find("ProfileLayout", true).OfType<TableLayoutPanel>().First();
+            var modules = new[] { "LifeModule", "SpotsModule", "TeleportModule", "SessionGroup" }
+                .Select(name => page.Controls.Find(name, true).First())
+                .ToArray();
+            var selected = modules.First(module => module.Name == target);
+            root.SuspendLayout();
+            foreach (var module in modules)
+                module.Visible = module == selected;
+            root.SetCellPosition(selected, new TableLayoutPanelCellPosition(0, 0));
+            root.SetColumnSpan(selected, 2);
+            root.RowStyles[0].Height = 450;
+            root.RowStyles[1].Height = 0;
+            root.Height = 450;
+            root.ResumeLayout(true);
+        }
+
+        static void HideModules(Panel page)
+        {
+            var root = page.Controls.Find("ProfileLayout", true).OfType<TableLayoutPanel>().First();
+            foreach (var name in new[] { "LifeModule", "SpotsModule", "TeleportModule", "SessionGroup" })
+                page.Controls.Find(name, true).First().Visible = false;
+            root.RowStyles[0].Height = 0;
+            root.RowStyles[1].Height = 0;
+            root.Height = root.RowStyles[2].Height > 0 ? (int)root.RowStyles[2].Height : 0;
+        }
+
+        static void SetModuleSettings(Panel page, string? module)
+        {
+            var settings = new[]
+            {
+                (Name: "LifeThresholdSettings", Module: "LifeModule"),
+                (Name: "LifeActions", Module: "LifeModule"),
+                (Name: "SpotsToggleSettings", Module: "SpotsModule"),
+                (Name: "SpotsActionSettings", Module: "SpotsModule"),
+                (Name: "SpotsCycleSettings", Module: "SpotsModule"),
+                (Name: "TeleportSettings", Module: "TeleportModule"),
+                (Name: "SessionSettings", Module: "SessionGroup")
+            };
+            foreach (var setting in settings)
+                page.Controls.Find(setting.Name, true).First().Visible = module == setting.Module;
+        }
 
         void SelectNavigation(Button selected)
         {
@@ -315,7 +421,7 @@ sealed class MainForm : Form
         {
             Name = "ProfileLayout",
             Dock = DockStyle.Top,
-            Height = 576,
+            Height = 680,
             ColumnCount = 2,
             RowCount = 3,
             Padding = new Padding(18, 8, 18, 8),
@@ -323,8 +429,8 @@ sealed class MainForm : Form
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 366));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 210));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 410));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
 
         var windowGroup = new RoundedPanel
@@ -370,14 +476,18 @@ sealed class MainForm : Form
         {
             Text = "SEGUNDO PLANO",
             Checked = profile.BackgroundMode,
-            Dock = DockStyle.Fill
+            Dock = DockStyle.None,
+            Width = 210,
+            Anchor = AnchorStyles.Left
         };
         var protectionEnabled = new BrandToggle
         {
             Name = "ProtectionEnabled",
             Text = "PROTEÇÃO ATIVA",
             Checked = profile.ProtectionEnabled,
-            Dock = DockStyle.Fill
+            Dock = DockStyle.None,
+            Width = 210,
+            Anchor = AnchorStyles.Left
         };
         windowLayout.Controls.Add(windowSelector, 0, 0);
         windowLayout.Controls.Add(protectionEnabled, 1, 0);
@@ -399,7 +509,12 @@ sealed class MainForm : Form
         barLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         barLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
 
-        var selectBar = new Button { Text = "⌖  MARCAR BARRA", AutoSize = true };
+        var selectBar = new Button
+        {
+            Text = "⌖  MARCAR BARRA",
+            AutoSize = true,
+            Font = new Font("Arial Narrow", 9F, FontStyle.Bold)
+        };
         var barStatus = StepStatus();
         var preview = new PictureBox
         {
@@ -442,6 +557,7 @@ sealed class MainForm : Form
 
         var thresholdLine = new FlowLayoutPanel
         {
+            Name = "LifeThresholdSettings",
             Dock = DockStyle.Fill,
             WrapContents = false,
             FlowDirection = FlowDirection.LeftToRight,
@@ -469,7 +585,17 @@ sealed class MainForm : Form
             Font = new Font("Arial Narrow", 8.5F, FontStyle.Bold)
         };
         readNow.Tag = "water";
-        var barActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty };
+        var barActions = new TableLayoutPanel
+        {
+            Name = "LifeActions",
+            Dock = DockStyle.None,
+            Width = 260,
+            Height = 78,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(4, 1, 4, 1),
+            Anchor = AnchorStyles.Left | AnchorStyles.Top
+        };
         barActions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         barActions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         selectBar.Dock = DockStyle.Fill;
@@ -477,6 +603,10 @@ sealed class MainForm : Form
         barActions.Controls.Add(selectBar, 0, 0);
         barActions.Controls.Add(readNow, 0, 1);
         barLayout.Controls.Add(barActions, 1, 2);
+        thresholdLine.VisibleChanged += (_, _) =>
+            barLayout.RowStyles[2].Height = thresholdLine.Visible ? 82 : 0;
+        barLayout.SizeChanged += (_, _) =>
+            barActions.Width = Math.Min(260, Math.Max(150, barLayout.GetColumnWidths()[1] - 12));
         barGroup.Controls.Add(barLayout);
         root.Controls.Add(barGroup, 0, 0);
 
@@ -489,8 +619,8 @@ sealed class MainForm : Form
             RowCount = 2,
             Padding = new Padding(10, 8, 10, 8)
         };
-        teleportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         teleportLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        teleportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
         var teleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 3, 0, 0) };
         teleportLine.Controls.Add(new Label
         {
@@ -513,7 +643,14 @@ sealed class MainForm : Form
         teleportLine.Controls.Add(selectTeleport);
         teleportLine.Controls.Add(teleportStatus);
         teleportLine.Controls.SetChildIndex(selectTeleport, 2);
-        var teleportAction = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        var teleportAction = new TableLayoutPanel
+        {
+            Name = "TeleportSettings",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = Padding.Empty
+        };
         teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         teleportAction.Controls.Add(new Label
@@ -526,8 +663,15 @@ sealed class MainForm : Form
         }, 0, 0);
         selectTeleport.Anchor = AnchorStyles.Right;
         teleportAction.Controls.Add(selectTeleport, 1, 0);
+        teleportAction.Height = 76;
+        teleportLayout.SizeChanged += (_, _) =>
+            teleportAction.Width = Math.Min(720, Math.Max(360, teleportLayout.ClientSize.Width - 20));
+        teleportAction.Dock = DockStyle.None;
+        teleportAction.Anchor = AnchorStyles.Left | AnchorStyles.Top;
         teleportLayout.Controls.Add(teleportLine, 0, 0);
         teleportLayout.Controls.Add(teleportAction, 0, 1);
+        teleportAction.VisibleChanged += (_, _) =>
+            teleportLayout.RowStyles[1].Height = teleportAction.Visible ? 80 : 0;
         teleportGroup.Controls.Add(teleportLayout);
         root.Controls.Add(teleportGroup, 0, 1);
 
@@ -650,7 +794,7 @@ sealed class MainForm : Form
         markerTools.Controls.Add(showMarks, 1, 0);
         markerTools.SetColumnSpan(showMarks, 2);
 
-        var useSpotsHeader = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        var useSpotsHeader = new TableLayoutPanel { Name = "SpotsToggleSettings", Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         useSpotsHeader.Controls.Add(new Label
@@ -687,7 +831,7 @@ sealed class MainForm : Form
         };
         spotsLayout.Controls.Add(spots, 0, 4);
 
-        var spotButtons = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1, Margin = Padding.Empty };
+        var spotButtons = new TableLayoutPanel { Name = "SpotsActionSettings", Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1, Margin = Padding.Empty };
         foreach (var width in new[] { 18F, 23F, 19F, 8F, 8F, 24F })
             spotButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, width));
         var addSpot = SmallButton("＋");
@@ -727,7 +871,32 @@ sealed class MainForm : Form
             Font = new Font("Arial Narrow", 9F),
             Margin = new Padding(0, 7, 3, 0)
         });
-        spotsLayout.Controls.Add(cyclesLine, 0, 6);
+        var resetSpots = SmallButton("↻ REINICIAR SPOTS");
+        resetSpots.AutoSize = false;
+        resetSpots.Width = 170;
+        resetSpots.Height = 30;
+        resetSpots.Font = new Font("Arial Narrow", 8.5F, FontStyle.Bold);
+        resetSpots.Margin = new Padding(3, 2, 3, 2);
+        var cyclesRow = new TableLayoutPanel { Name = "SpotsCycleSettings", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        cyclesRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        cyclesRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        cyclesRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        cyclesLine.AutoSize = true;
+        cyclesLine.Dock = DockStyle.None;
+        cyclesRow.Controls.Add(cyclesLine, 0, 0);
+        cyclesRow.Controls.Add(resetSpots, 1, 0);
+        spotsLayout.Controls.Add(cyclesRow, 0, 6);
+        useSpotsHeader.VisibleChanged += (_, _) => spotsLayout.RowStyles[0].Height = useSpotsHeader.Visible ? 34 : 0;
+        spotButtons.VisibleChanged += (_, _) => spotsLayout.RowStyles[5].Height = spotButtons.Visible ? 42 : 0;
+        cyclesRow.VisibleChanged += (_, _) => spotsLayout.RowStyles[6].Height = cyclesRow.Visible ? 34 : 0;
+        spotButtons.SizeChanged += (_, _) =>
+        {
+            var compactActions = spotButtons.ClientSize.Width < 620;
+            addSpot.Text = compactActions ? "＋" : "＋ ADICIONAR";
+            updateSpot.Text = compactActions ? "POSIÇÃO" : "↕ POSIÇÃO";
+            renameSpot.Text = compactActions ? "NOME" : "✎ NOME";
+            resetSpots.Text = spotButtons.ClientSize.Width < 700 ? "↻ REINICIAR" : "↻ REINICIAR SPOTS";
+        };
         spotsGroup.Controls.Add(spotsLayout);
         root.Controls.Add(spotsGroup, 1, 0);
 
@@ -799,7 +968,7 @@ sealed class MainForm : Form
         stateFlow.Controls.Add(timeCell, 0, 1);
         stateFlow.Controls.Add(remainingCell, 1, 1);
 
-        var stateButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        var stateButtons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
         var rearm = SmallButton("⌖ RECALIBRAR");
         var reset = SmallButton("↻ REINICIAR");
         var test = SmallButton("▷ TESTAR");
@@ -807,16 +976,28 @@ sealed class MainForm : Form
         var backgroundCaptureTest = SmallButton("Testar captura em 2º plano");
         test.Tag = "water";
         stateButtons.Controls.AddRange([rearm, reset, test]);
-        advanced.Controls.Add(new Label { Text = "AÇÕES DA SESSÃO", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 10, 3, 2) });
-        advanced.Controls.Add(stateButtons);
+        var sessionSettings = new FlowLayoutPanel
+        {
+            Name = "SessionSettings",
+            Dock = DockStyle.Fill,
+            WrapContents = false,
+            Padding = new Padding(8, 5, 8, 2)
+        };
+        sessionSettings.Controls.Add(sessionLine);
+        sessionSettings.Controls.Add(stateButtons);
+        var sessionLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        sessionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        sessionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        sessionLayout.Controls.Add(stateFlow, 0, 0);
+        sessionLayout.Controls.Add(sessionSettings, 0, 1);
+        sessionSettings.VisibleChanged += (_, _) =>
+            sessionLayout.RowStyles[1].Height = sessionSettings.Visible ? 62 : 0;
         advanced.Controls.Add(new Label { Text = "TESTES DE COMPATIBILIDADE", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 8, 3, 2) });
         var compatibilityTests = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
         compatibilityTests.Controls.AddRange([backgroundTest, backgroundCaptureTest]);
         advanced.Controls.Add(compatibilityTests);
         advanced.Controls.Add(captureStatus);
-        advanced.Controls.Add(new Label { Text = "LIMITE DA SESSÃO", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 8, 3, 2) });
-        advanced.Controls.Add(sessionLine);
-        stateGroup.Controls.Add(stateFlow);
+        stateGroup.Controls.Add(sessionLayout);
         root.Controls.Add(stateGroup, 1, 1);
 
         root.Controls.Add(advancedArea, 0, 2);
@@ -826,8 +1007,6 @@ sealed class MainForm : Form
             ResizeAdvanced();
             var compact = root.ClientSize.Width < 1100;
             selectBar.Text = compact ? "⌖  MARCAR" : "⌖  MARCAR BARRA";
-            addSpot.Text = compact ? "＋" : "＋ ADICIONAR";
-            updateSpot.Text = compact ? "↕ POS." : "↕ POSIÇÃO";
         };
         viewport.Controls.Add(root);
         page.Controls.Add(viewport);
@@ -853,7 +1032,6 @@ sealed class MainForm : Form
             lifeLoss,
             remainingTime);
         _profiles.Add(ui);
-        SetSpotControlsEnabled();
         RefreshProfileUi(ui);
         if (!profile.ProtectionEnabled)
             SetProfileStatus(ui, "Desativada", "Proteção desligada para esta janela.");
@@ -922,7 +1100,6 @@ sealed class MainForm : Form
             ui.CompletedCycles = 0;
             if (ui.State == ProfileState.Completed)
                 ui.State = ProfileState.Stopped;
-            SetSpotControlsEnabled();
             UpdateProgress(ui);
             TrySave();
         };
@@ -966,7 +1143,7 @@ sealed class MainForm : Form
             ResizeAdvanced();
             advancedGroup.Visible = advancedToggle.Checked;
             root.RowStyles[2].Height = advancedToggle.Checked ? 610 : 0;
-            root.Height = advancedToggle.Checked ? 1186 : 576;
+            root.Height = advancedToggle.Checked ? 1290 : 680;
         };
 
         addSpot.Click += (_, _) => AddSpot(ui);
@@ -975,6 +1152,7 @@ sealed class MainForm : Form
         moveUp.Click += (_, _) => MoveSpot(ui, -1);
         moveDown.Click += (_, _) => MoveSpot(ui, 1);
         removeSpot.Click += (_, _) => RemoveSpot(ui);
+        resetSpots.Click += (_, _) => ResetSpots(ui);
         rearm.Click += async (_, _) => await RearmProfileAsync(ui);
         reset.Click += async (_, _) => await ResetSequenceAsync(ui);
         test.Click += async (_, _) => await TestReactionAsync(ui);
@@ -1008,16 +1186,6 @@ sealed class MainForm : Form
             TrySave();
         }
 
-        void SetSpotControlsEnabled()
-        {
-            spots.Enabled = useSpots.Checked;
-            spotWindowLine.Enabled = useSpots.Checked;
-            spotMatch.Enabled = useSpots.Checked;
-            spotMenuLine.Enabled = useSpots.Checked;
-            confirmTeleportLine.Enabled = useSpots.Checked;
-            spotButtons.Enabled = useSpots.Checked;
-            cyclesLine.Enabled = useSpots.Checked;
-        }
     }
 
     static FlowLayoutPanel VerticalPanel(bool scroll = true) => new()
@@ -1036,7 +1204,6 @@ sealed class MainForm : Form
         Padding = new Padding(12, 30, 12, 12),
         BackColor = InkSoft,
         ForeColor = Bone,
-        BorderColor = Color.FromArgb(111, 82, 34),
         Font = new Font("Arial Narrow", 14F, FontStyle.Bold)
     };
 
@@ -1311,8 +1478,6 @@ sealed class MainForm : Form
 
     sealed class ModuleCard : GroupBox
     {
-        public Color BorderColor { get; set; } = Color.FromArgb(111, 82, 34);
-
         public ModuleCard()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -1325,9 +1490,7 @@ sealed class MainForm : Form
             eventArgs.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             using var path = RoundedPath(new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3)), 16);
             using var fill = new SolidBrush(BackColor);
-            using var border = new Pen(BorderColor);
             eventArgs.Graphics.FillPath(fill, path);
-            eventArgs.Graphics.DrawPath(border, path);
             TextRenderer.DrawText(eventArgs.Graphics, Text, Font,
                 new Rectangle(20, 10, Math.Max(0, Width - 40), 28), ForeColor,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
@@ -1713,6 +1876,62 @@ sealed class MainForm : Form
         });
         RefreshSpotList(ui, ui.Profile.Spots.Count - 1);
         TrySave();
+    }
+
+    void ResetSpots(ProfileUi ui)
+    {
+        if (!CanEdit())
+            return;
+        if (MessageBox.Show(this,
+                "A rota atual será substituída pelos novos pontos. Marque um spot por vez e pressione Esc para concluir.\r\n\r\nSe você pressionar Esc antes do primeiro ponto, a rota atual será mantida.",
+                "Reiniciar spots",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning) != DialogResult.OK
+            || !TryGetTarget(ui, out var choice, out var bounds))
+            return;
+
+        var newSpots = new List<SpotConfig>();
+        Hide();
+        try
+        {
+            if (!NativeMethods.TryActivate(choice.Handle))
+                return;
+            while (true)
+            {
+                using var overlay = new RegionOverlay(
+                    bounds,
+                    true,
+                    $"Clique no Spot {newSpots.Count + 1} — Esc conclui");
+                if (overlay.ShowDialog() != DialogResult.OK)
+                    break;
+                newSpots.Add(new SpotConfig
+                {
+                    Name = $"Spot {newSpots.Count + 1}",
+                    X = overlay.SelectedPoint.X,
+                    Y = overlay.SelectedPoint.Y
+                });
+            }
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+
+        if (newSpots.Count == 0)
+        {
+            SetStatus("Redefinição cancelada; a rota anterior foi mantida.");
+            return;
+        }
+        ui.Profile.Spots.Clear();
+        foreach (var spot in newSpots)
+            ui.Profile.Spots.Add(spot);
+        ui.NextSpotIndex = 0;
+        ui.CompletedCycles = 0;
+        RefreshSpotList(ui, 0);
+        UpdateProgress(ui);
+        TrySave();
+        SetStatus($"Rota redefinida com {newSpots.Count} spot(s).");
     }
 
     void UpdateSpot(ProfileUi ui)

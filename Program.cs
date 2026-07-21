@@ -18,10 +18,11 @@ static class Program
                 {
                     StartPosition = FormStartPosition.Manual,
                     Location = new Point(-32000, -32000),
-                    ShowInTaskbar = false,
-                    Size = new Size(1280, 720)
+                    ShowInTaskbar = false
                 };
                 form.Show();
+                var scale = form.DeviceDpi / 96F;
+                form.Size = new Size((int)(1280 * scale), (int)(720 * scale));
                 Application.DoEvents();
                 if (form.BackColor != Color.FromArgb(7, 9, 9))
                     throw new InvalidOperationException("A identidade visual Ronaldinho não foi aplicada.");
@@ -37,18 +38,58 @@ static class Program
                                       || page.Controls.Find("LifeModule", true).Length != 1
                                       || page.Controls.Find("SpotsModule", true).Length != 1))
                     throw new InvalidOperationException("A interface visual compacta não foi montada por completo.");
-                foreach (var name in new[] { "RefreshWindows", "StartStop", "WindowSelector", "ProtectionEnabled", "UseSpots" })
+                foreach (var name in new[] { "RefreshWindows", "StartStop" })
                     AssertInside(RequiredVisible(form, name));
-                foreach (var text in new[] { "＋", "REMOVER" })
-                    AssertInside(RequiredVisibleButton(form, text));
+                if (new[] { "LifeActions", "SpotsToggleSettings", "TeleportSettings", "SessionSettings" }
+                    .Any(name => form.Controls.Find(name, true).Any(control => control.Visible)))
+                    throw new InvalidOperationException("A visão geral deve exibir apenas status.");
                 var spotsList = (CheckedListBox)RequiredVisible(form, "SpotsList");
                 if (spotsList.ClientSize.Height / spotsList.ItemHeight < 5)
                     throw new InvalidOperationException("A lista de spots deve exibir cinco linhas completas.");
+
+                FindAll(form).OfType<Button>().First(button => button.Text.Trim().EndsWith("JANELA")).PerformClick();
+                Application.DoEvents();
+                foreach (var name in new[] { "WindowSelector", "ProtectionEnabled" })
+                    AssertInside(RequiredVisible(form, name));
+                if (RequiredVisible(form, "ProtectionEnabled").Width > 220)
+                    throw new InvalidOperationException("O controle de proteção voltou a se afastar do texto.");
+
+                var routeNav = FindAll(form).OfType<Button>().First(button => button.Text.Contains("ROTA DE SPOTS"));
+                routeNav.PerformClick();
+                Application.DoEvents();
+                var activePage = pages.Single(page => page.Visible);
+                if (!activePage.Controls.Find("SpotsModule", true).Single().Visible
+                    || new[] { "LifeModule", "TeleportModule", "SessionGroup" }
+                        .Any(name => activePage.Controls.Find(name, true).Single().Visible))
+                    throw new InvalidOperationException("A navegação lateral não isolou o módulo de spots.");
+                AssertInside(RequiredVisible(form, "UseSpots"));
+                AssertInside(FindAll(form).OfType<Button>().First(button => button.Visible && button.Text.StartsWith("＋")));
+                AssertInside(RequiredVisibleButton(form, "REMOVER"));
+                var resetSpots = FindAll(form).OfType<Button>()
+                    .FirstOrDefault(button => button.Visible && button.Text.StartsWith("↻ REINICIAR"))
+                    ?? throw new InvalidOperationException("Botão de reiniciar spots não encontrado.");
+                AssertInside(resetSpots);
+
+                FindAll(form).OfType<Button>().First(button => button.Text.Contains("BARRA DE VIDA")).PerformClick();
+                Application.DoEvents();
+                if (RequiredVisible(form, "LifeActions").Width > 270)
+                    throw new InvalidOperationException("Os botões da barra voltaram a se afastar da leitura.");
+
+                FindAll(form).OfType<Button>().First(button => button.Text.Contains("SESSÃO")).PerformClick();
+                Application.DoEvents();
+                foreach (var text in new[] { "⌖ RECALIBRAR", "▷ TESTAR" })
+                    AssertInside(RequiredVisibleButton(form, text));
+
+                FindAll(form).OfType<Button>().First(button => button.Text.Contains("VISÃO GERAL")).PerformClick();
+                Application.DoEvents();
+                if (new[] { "LifeModule", "SpotsModule", "TeleportModule", "SessionGroup" }
+                    .Any(name => !activePage.Controls.Find(name, true).Single().Visible))
+                    throw new InvalidOperationException("A visão geral não restaurou todos os módulos.");
                 var advancedToggle = form.Controls.Find("AdvancedToggle", true).OfType<CheckBox>().FirstOrDefault()
                                      ?? throw new InvalidOperationException("Controle de opções avançadas não encontrado.");
                 advancedToggle.Checked = true;
                 Application.DoEvents();
-                foreach (var text in new[] { "JANELA DE SPOTS", "ABRIR MENU", "BOTÃO TELEPORTAR", "⌖ RECALIBRAR", "▷ TESTAR" })
+                foreach (var text in new[] { "JANELA DE SPOTS", "ABRIR MENU", "BOTÃO TELEPORTAR" })
                     AssertInside(RequiredVisibleButton(form, text));
                 var advancedGroup = RequiredVisible(form, "AdvancedGroup");
                 var viewport = RequiredVisible(form, "Viewport");

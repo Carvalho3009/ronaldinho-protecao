@@ -1,8 +1,8 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 1.2.0 — Dibre a concorrência**
+**Versão 1.2.1 — Dibre a concorrência**
 
-A versão 1.2.0 apresenta a nova interface modular: navegação lateral fixa, visão geral em quatro cartões e configurações técnicas separadas da operação diária. Em telas menores, a área principal possui rolagem para manter todos os comandos acessíveis sem cortar os módulos.
+A visão geral exibe somente os status. Use os menus laterais para abrir a configuração de Janela, Barra de vida, Teleporte, Rota de spots, Sessão ou as opções avançadas.
 
 Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e pode executar uma sequência de teleporte e spots quando a vida cair além do limite configurado.
 
@@ -39,7 +39,7 @@ Repita estes passos nas abas **Janela 1** e **Janela 2** que desejar usar.
 
 ### 1. Escolha a janela
 
-1. Selecione a janela correta na lista.
+1. Clique em **Janela** no menu lateral e selecione a janela correta na lista.
 2. Ative **Proteção ativa** para monitorá-la.
 3. Use **Segundo plano** para não mover o mouse nem entregar o foco ao jogo.
 
@@ -50,7 +50,7 @@ A proteção pode ser ativada ou desativada individualmente durante a sessão. D
 Este passo precisa ser feito com a vida realmente em 100%.
 
 1. Recupere completamente a vida.
-2. Na visão geral, abra o cartão **Barra de vida** e clique em **Marcar barra**.
+2. Clique em **Barra de vida** no menu lateral e use **Marcar barra**.
 3. Arraste o retângulo exatamente sobre a barra, incluindo toda a extensão que o vermelho ocupa quando cheia.
 4. Confirme a marcação.
 5. Confira se o visualizador mostra **Vida: 100%**.
@@ -59,7 +59,7 @@ O programa mede somente a largura vermelha. Números brancos, fundo, moldura e f
 
 ### 3. Marque o item de teleporte
 
-1. No cartão **Teleporte**, clique em **Marcar item**.
+1. Clique em **Teleporte** no menu lateral e use **Marcar item**.
 2. Clique na posição do item que deve ser usado quando a vida cair.
 
 ### 4. Defina o limite
@@ -85,13 +85,15 @@ Se quiser escolher um spot após usar o item de teleporte:
 7. Volte à **Visão geral** e use **+** no cartão **Rota de spots** para cadastrar cada posição.
 8. Ative na lista somente os spots que participarão da sequência e defina quantas vezes a rota será repetida.
 
+Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirmação, clique no primeiro spot; o programa abrirá imediatamente a marcação seguinte. Continue clicando nos spots na ordem desejada e pressione `Esc` para concluir. Se `Esc` for pressionado antes do primeiro ponto, a rota anterior será mantida.
+
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
 Em **Configurações**, ajuste **Tentativas no botão Teleportar**. Após cada clique, o programa verifica se a janela de spots fechou. Se ela continuar aberta por stagger ou lag, o botão é acionado novamente usando o **Intervalo entre cliques**. Se todas as tentativas falharem, a proteção daquela janela pausa sem avançar o spot ou o ciclo.
 
 ## Tempo da sessão
 
-Em **Configurações > Limite da sessão**, defina as horas e os minutos de cada janela. O contador considera apenas o tempo em que aquela proteção está ativa. Ao terminar, a janela é desativada automaticamente. A visão geral mostra o tempo ativo e o restante no cartão **Sessão**.
+No menu lateral **Sessão**, defina as horas e os minutos de cada janela. O contador considera apenas o tempo em que aquela proteção está ativa. Ao terminar, a janela é desativada automaticamente. A visão geral mostra o tempo ativo e o restante no cartão **Sessão**.
 
 ## Iniciando
 
