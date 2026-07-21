@@ -13,6 +13,7 @@ sealed class MainForm : Form
     static readonly Color Water = Color.FromArgb(99, 185, 243);
     readonly AppConfig _config;
     readonly List<ProfileUi> _profiles = [];
+    readonly Dictionary<WindowProfile, OverviewUi> _overviews = [];
     readonly System.Windows.Forms.Timer _timer = new();
     readonly Button _startStop = new();
     readonly Button _updateStatus = new();
@@ -175,10 +176,22 @@ sealed class MainForm : Form
         var windowHeaderHost = new Panel { Dock = DockStyle.Fill, BackColor = Ink };
         header.Controls.Add(windowHeaderHost, 0, 1);
         var pageHost = new Panel { Name = "TabHost", Dock = DockStyle.Fill, BackColor = Ink };
+        var overviewHost = new TableLayoutPanel
+        {
+            Name = "GlobalOverview",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(18, 8, 18, 8),
+            BackColor = Ink
+        };
+        overviewHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        overviewHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         var pages = new List<Panel>();
         var windowHeaders = new List<Control>();
         var tabButtons = new List<Button>();
         var navButtons = new List<Button>();
+        var selectedPage = 0;
         foreach (var profile in _config.Windows)
         {
             var (page, windowHeader) = BuildProfilePage(profile);
@@ -202,6 +215,9 @@ sealed class MainForm : Form
             tabButtons.Add(tab);
             tabBar.Controls.Add(tab);
         }
+        for (var index = 0; index < _profiles.Count; index++)
+            overviewHost.Controls.Add(BuildOverviewCard(_profiles[index]), index, 0);
+        pageHost.Controls.Add(overviewHost);
         SelectPage(0);
 
         _status.Name = "StatusBar";
@@ -248,16 +264,19 @@ sealed class MainForm : Form
 
         void SelectPage(int selected)
         {
+            selectedPage = selected;
             for (var index = 0; index < pages.Count; index++)
             {
-                pages[index].Visible = index == selected;
-                windowHeaders[index].Visible = index == selected;
+                pages[index].Visible = false;
+                windowHeaders[index].Visible = false;
                 tabButtons[index].Tag = index == selected ? "tabSelected" : "tab";
                 StyleButton(tabButtons[index]);
             }
-            pages[selected].BringToFront();
-            windowHeaders[selected].BringToFront();
             ShowOverview(pages[selected]);
+            overviewHost.Visible = true;
+            overviewHost.BringToFront();
+            foreach (var ui in _profiles)
+                RefreshOverview(ui);
             SetWindowSettings(false);
             ActiveViewport().AutoScrollPosition = Point.Empty;
             SelectNavigation(navButtons.FirstOrDefault() ?? new Button());
@@ -277,11 +296,25 @@ sealed class MainForm : Form
             button.Click += (_, _) =>
             {
                 SelectNavigation(button);
-                var activePage = pages.First(page => page.Visible);
+                var activePage = pages[selectedPage];
                 var activeAdvancedToggle = activePage.Controls.Find("AdvancedToggle", true).OfType<CheckBox>().First();
                 ActiveViewport().AutoScrollPosition = Point.Empty;
                 if (target != "AdvancedGroup" && activeAdvancedToggle.Checked)
                     activeAdvancedToggle.Checked = false;
+                if (target is null)
+                {
+                    ShowOverview(activePage);
+                    activePage.Visible = false;
+                    overviewHost.Visible = true;
+                    overviewHost.BringToFront();
+                    foreach (var ui in _profiles)
+                        RefreshOverview(ui);
+                    SetWindowSettings(false);
+                    return;
+                }
+                overviewHost.Visible = false;
+                activePage.Visible = true;
+                activePage.BringToFront();
                 if (target == "WindowHeader")
                 {
                     SetWindowSettings(true);
@@ -305,16 +338,13 @@ sealed class MainForm : Form
                         ActiveViewport().ScrollControlIntoView(advanced);
                     return;
                 }
-                if (target is null)
-                    ShowOverview(activePage);
-                else
-                    FocusModule(activePage, target);
+                FocusModule(activePage, target);
             };
             navButtons.Add(button);
             nav.Controls.Add(button);
         }
 
-        Panel ActiveViewport() => pages.First(page => page.Visible).Controls.Find("Viewport", true).OfType<Panel>().First();
+        Panel ActiveViewport() => pages[selectedPage].Controls.Find("Viewport", true).OfType<Panel>().First();
 
         void SetWindowSettings(bool visible)
         {
@@ -371,9 +401,10 @@ sealed class MainForm : Form
                 module.Visible = module == selected;
             root.SetCellPosition(selected, new TableLayoutPanelCellPosition(0, 0));
             root.SetColumnSpan(selected, 2);
-            root.RowStyles[0].Height = 450;
+            var height = target == "SpotsModule" ? 540 : 450;
+            root.RowStyles[0].Height = height;
             root.RowStyles[1].Height = 0;
-            root.Height = 450;
+            root.Height = height;
             root.ResumeLayout(true);
         }
 
@@ -394,6 +425,8 @@ sealed class MainForm : Form
                 (Name: "LifeThresholdSettings", Module: "LifeModule"),
                 (Name: "LifeActions", Module: "LifeModule"),
                 (Name: "SpotsToggleSettings", Module: "SpotsModule"),
+                (Name: "SpotsMarkerSettings", Module: "SpotsModule"),
+                (Name: "SpotsMarkerTools", Module: "SpotsModule"),
                 (Name: "SpotsActionSettings", Module: "SpotsModule"),
                 (Name: "SpotsCycleSettings", Module: "SpotsModule"),
                 (Name: "TeleportSettings", Module: "TeleportModule"),
@@ -411,6 +444,63 @@ sealed class MainForm : Form
                 StyleButton(button);
             }
         }
+    }
+
+    Control BuildOverviewCard(ProfileUi ui)
+    {
+        var card = Group(ui.Profile.Name.ToUpperInvariant());
+        card.Name = "OverviewCard";
+        var target = new Label { AutoSize = true, ForeColor = Muted, AutoEllipsis = true, Dock = DockStyle.Fill };
+        var protection = new Label { AutoSize = true, Font = new Font("Arial Narrow", 11F, FontStyle.Bold) };
+        var life = new Label { AutoSize = true, ForeColor = Coral, Font = new Font("Arial Narrow", 28F, FontStyle.Bold) };
+        var loss = new Label { AutoSize = true, ForeColor = Muted };
+        var state = new Label { AutoSize = true, Font = new Font("Arial Narrow", 15F, FontStyle.Bold) };
+        var detail = new Label { AutoSize = true, ForeColor = Acid, MaximumSize = new Size(420, 0) };
+        var next = new Label { AutoSize = true, ForeColor = Water, MaximumSize = new Size(420, 0) };
+        var time = new Label { AutoSize = true, ForeColor = Water, Font = new Font("Arial Narrow", 11F, FontStyle.Bold) };
+        var remaining = new Label { AutoSize = true, ForeColor = Water, Font = new Font("Arial Narrow", 11F, FontStyle.Bold) };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 3,
+            Padding = new Padding(12, 10, 12, 10)
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        var header = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        header.Controls.Add(protection);
+        header.Controls.Add(target);
+        layout.Controls.Add(header, 0, 0);
+        layout.SetColumnSpan(header, 2);
+        layout.Controls.Add(MetricCell("STATUS", state, detail), 0, 1);
+        layout.Controls.Add(MetricCell("VIDA", life, loss), 1, 1);
+        layout.Controls.Add(MetricCell("PRÓXIMA REAÇÃO", next), 0, 2);
+        layout.Controls.Add(MetricCell("TEMPO", time, remaining), 1, 2);
+        card.Controls.Add(layout);
+        _overviews[ui.Profile] = new OverviewUi(target, protection, life, loss, state, detail, next, time, remaining);
+        RefreshOverview(ui);
+        return card;
+    }
+
+    void RefreshOverview(ProfileUi ui)
+    {
+        if (!_overviews.TryGetValue(ui.Profile, out var overview))
+            return;
+        overview.Target.Text = ui.Window.SelectedItem is WindowChoice choice ? choice.Title : "Janela não selecionada";
+        overview.Protection.Text = $"● {(ui.Profile.ProtectionEnabled ? "PROTEÇÃO ATIVA" : "PROTEÇÃO DESATIVADA")} • {(UsesRandomTeleport(ui.Profile) ? "RANDOM" : "SAFE")}";
+        overview.Protection.ForeColor = ui.Profile.ProtectionEnabled ? Acid : Coral;
+        overview.Life.Text = ui.LifePercent.Text;
+        overview.Loss.Text = ui.LifeLoss.Text;
+        overview.State.Text = ui.StateLabel.Text;
+        overview.State.ForeColor = ui.StateLabel.ForeColor;
+        overview.Detail.Text = ui.Detected.Text;
+        overview.Next.Text = ui.Progress.Text;
+        overview.Time.Text = $"Ativo {ui.TimeLabel.Text}";
+        overview.Remaining.Text = $"Restante {ui.RemainingTimeLabel.Text}";
     }
 
     (Panel Page, Control WindowHeader) BuildProfilePage(WindowProfile profile)
@@ -621,7 +711,7 @@ sealed class MainForm : Form
             Padding = new Padding(10, 8, 10, 8)
         };
         teleportLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        teleportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
+        teleportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
         var teleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 3, 0, 0) };
         teleportLine.Controls.Add(new Label
         {
@@ -631,48 +721,59 @@ sealed class MainForm : Form
             Font = new Font("Arial Narrow", 9F, FontStyle.Bold),
             Margin = new Padding(3, 8, 14, 0)
         });
-        var selectTeleport = new Button
-        {
-            Text = "⌖  MARCAR ITEM",
-            AutoSize = false,
-            Width = 190,
-            Height = 44,
-            Font = new Font("Arial Narrow", 10F, FontStyle.Bold)
-        };
         var teleportStatus = StepStatus();
         teleportStatus.Font = new Font("Arial Narrow", 12F, FontStyle.Bold);
-        teleportLine.Controls.Add(selectTeleport);
         teleportLine.Controls.Add(teleportStatus);
-        teleportLine.Controls.SetChildIndex(selectTeleport, 2);
+        var teleportMode = new BrandComboBox
+        {
+            Name = "TeleportMode",
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 150
+        };
+        teleportMode.Items.AddRange(["SAFE", "RANDOM"]);
+        teleportMode.SelectedIndex = string.Equals(profile.TeleportMode, "Random", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        var selectSafeTeleport = MarkerButton("MARCAR SAFE");
+        var safeTeleportStatus = StepStatus();
+        var selectRandomTeleport = MarkerButton("MARCAR RANDOM");
+        var randomTeleportStatus = StepStatus();
         var teleportAction = new TableLayoutPanel
         {
             Name = "TeleportSettings",
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = Padding.Empty
         };
-        teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        teleportAction.Controls.Add(new Label
+        teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+        teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
+        teleportAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
+        var modeLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        modeLine.Controls.Add(new Label
         {
-            Text = "Defina o item que será usado para\r\nteleportar entre os spots.",
-            Dock = DockStyle.Fill,
+            Text = "USAR TELEPORTE",
+            AutoSize = true,
             ForeColor = Muted,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Margin = new Padding(3, 0, 12, 0)
-        }, 0, 0);
-        selectTeleport.Anchor = AnchorStyles.Right;
-        teleportAction.Controls.Add(selectTeleport, 1, 0);
-        teleportAction.Height = 76;
+            Font = new Font("Arial Narrow", 9F, FontStyle.Bold)
+        });
+        modeLine.Controls.Add(teleportMode);
+        var safeLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        safeLine.Controls.Add(selectSafeTeleport);
+        safeLine.Controls.Add(safeTeleportStatus);
+        var randomLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        randomLine.Controls.Add(selectRandomTeleport);
+        randomLine.Controls.Add(randomTeleportStatus);
+        teleportAction.Controls.Add(modeLine, 0, 0);
+        teleportAction.Controls.Add(safeLine, 1, 0);
+        teleportAction.Controls.Add(randomLine, 2, 0);
+        teleportAction.Height = 88;
         teleportLayout.SizeChanged += (_, _) =>
-            teleportAction.Width = Math.Min(720, Math.Max(360, teleportLayout.ClientSize.Width - 20));
+            teleportAction.Width = Math.Min(940, Math.Max(560, teleportLayout.ClientSize.Width - 20));
         teleportAction.Dock = DockStyle.None;
         teleportAction.Anchor = AnchorStyles.Left | AnchorStyles.Top;
         teleportLayout.Controls.Add(teleportLine, 0, 0);
         teleportLayout.Controls.Add(teleportAction, 0, 1);
         teleportAction.VisibleChanged += (_, _) =>
-            teleportLayout.RowStyles[1].Height = teleportAction.Visible ? 80 : 0;
+            teleportLayout.RowStyles[1].Height = teleportAction.Visible ? 92 : 0;
         teleportGroup.Controls.Add(teleportLayout);
         root.Controls.Add(teleportGroup, 0, 1);
 
@@ -756,7 +857,7 @@ sealed class MainForm : Form
             Margin = new Padding(3, 1, 3, 1)
         };
 
-        var markers = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var markers = new TableLayoutPanel { Name = "SpotsMarkerSettings", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
         markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
         markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
@@ -784,7 +885,7 @@ sealed class MainForm : Form
         markers.Controls.Add(spotWindowLine, 0, 0);
         markers.Controls.Add(spotMenuLine, 1, 0);
         markers.Controls.Add(confirmTeleportLine, 2, 0);
-        var markerTools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var markerTools = new TableLayoutPanel { Name = "SpotsMarkerTools", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
@@ -808,6 +909,8 @@ sealed class MainForm : Form
         markerTools.Controls.Add(spotMatch, 0, 0);
         markerTools.Controls.Add(showMarks, 1, 0);
         markerTools.SetColumnSpan(showMarks, 2);
+        spotsLayout.Controls.Add(markers, 0, 1);
+        spotsLayout.Controls.Add(markerTools, 0, 2);
 
         var useSpotsHeader = new TableLayoutPanel { Name = "SpotsToggleSettings", Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -915,19 +1018,8 @@ sealed class MainForm : Form
         spotsGroup.Controls.Add(spotsLayout);
         root.Controls.Add(spotsGroup, 1, 0);
 
-        markers.Dock = DockStyle.None;
-        markers.Height = 72;
-        markerTools.Dock = DockStyle.None;
-        markerTools.Height = 38;
-        advancedRoute.Controls.Add(new Label
-        {
-            Text = "MARCAÇÕES DA ROTA",
-            AutoSize = true,
-            ForeColor = Gold,
-            Margin = new Padding(3, 4, 3, 3)
-        });
-        advancedRoute.Controls.Add(markers);
-        advancedRoute.Controls.Add(markerTools);
+        markers.VisibleChanged += (_, _) => spotsLayout.RowStyles[1].Height = markers.Visible ? 72 : 0;
+        markerTools.VisibleChanged += (_, _) => spotsLayout.RowStyles[2].Height = markerTools.Visible ? 38 : 0;
 
         var stateGroup = Group("⌁  SESSÃO");
         stateGroup.Name = "SessionGroup";
@@ -1023,7 +1115,6 @@ sealed class MainForm : Form
             var compact = root.ClientSize.Width < 1100;
             selectBar.Text = compact ? "⌖  MARCAR" : "⌖  MARCAR BARRA";
         };
-        advancedRoute.SizeChanged += (_, _) => ResizeAdvancedRoute();
         viewport.Controls.Add(root);
         page.Controls.Add(viewport);
 
@@ -1032,6 +1123,8 @@ sealed class MainForm : Form
             windowCombo,
             barStatus,
             teleportStatus,
+            safeTeleportStatus,
+            randomTeleportStatus,
             spotWindowStatus,
             spotMenuStatus,
             confirmTeleportStatus,
@@ -1061,6 +1154,7 @@ sealed class MainForm : Form
             ui.DisposeCapture();
             if (_running)
                 PauseProfile(ui, "Janela alterada. Inicie novamente.");
+            RefreshOverview(ui);
             TrySave();
         };
         backgroundMode.CheckedChanged += (_, _) =>
@@ -1094,7 +1188,23 @@ sealed class MainForm : Form
         };
         selectBar.Click += (_, _) => SelectHealthBar(ui);
         readNow.Click += async (_, _) => await ReadHealthNowAsync(ui);
-        selectTeleport.Click += (_, _) => SelectTeleport(ui);
+        selectSafeTeleport.Click += (_, _) => SelectTeleport(ui, false);
+        selectRandomTeleport.Click += (_, _) => SelectTeleport(ui, true);
+        teleportMode.SelectedIndexChanged += (_, _) =>
+        {
+            var selected = teleportMode.SelectedIndex == 1 ? "Random" : "Safe";
+            if (string.Equals(profile.TeleportMode, selected, StringComparison.OrdinalIgnoreCase))
+                return;
+            if (_running)
+            {
+                teleportMode.SelectedIndex = string.Equals(profile.TeleportMode, "Random", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                MessageBox.Show(this, "Pare a proteção antes de trocar o tipo de teleporte.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            profile.TeleportMode = selected;
+            RefreshProfileUi(ui);
+            TrySave();
+        };
         selectSpotWindow.Click += (_, _) => SelectSpotWindow(ui);
         selectSpotMenu.Click += (_, _) => SelectSpotMenu(ui);
         selectConfirmTeleport.Click += (_, _) => SelectConfirmTeleport(ui);
@@ -1180,14 +1290,6 @@ sealed class MainForm : Form
         {
             var width = Math.Max(500, root.ClientSize.Width - 42);
             advancedGroup.Width = width;
-            ResizeAdvancedRoute();
-        }
-
-        void ResizeAdvancedRoute()
-        {
-            var width = Math.Max(420, advancedRoute.ClientSize.Width - 16);
-            markers.Width = width;
-            markerTools.Width = width;
         }
 
         void SaveSessionLimit()
@@ -1514,8 +1616,9 @@ sealed class MainForm : Form
             using var path = RoundedPath(new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3)), 16);
             using var fill = new SolidBrush(BackColor);
             eventArgs.Graphics.FillPath(fill, path);
+            var titleHeight = (int)Math.Ceiling(_titleFont.GetHeight(eventArgs.Graphics)) + 8;
             TextRenderer.DrawText(eventArgs.Graphics, Text, _titleFont,
-                new Rectangle(20, 10, Math.Max(0, Width - 40), 28), ForeColor,
+                new Rectangle(20, 8, Math.Max(0, Width - 40), titleHeight), ForeColor,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
 
@@ -1636,6 +1739,8 @@ sealed class MainForm : Form
         {
             _loading = false;
         }
+        foreach (var ui in _profiles)
+            RefreshOverview(ui);
         SetStatus($"{choices.Count} janelas encontradas.");
     }
 
@@ -1761,11 +1866,15 @@ sealed class MainForm : Form
         }
     }
 
-    void SelectTeleport(ProfileUi ui)
+    void SelectTeleport(ProfileUi ui, bool random)
     {
         if (!CanEdit() || !TrySelectPoint(ui, out var point))
             return;
-        ui.Profile.TeleportPoint = new ClickPointConfig { X = point.X, Y = point.Y, Configured = true };
+        var selected = new ClickPointConfig { X = point.X, Y = point.Y, Configured = true };
+        if (random)
+            ui.Profile.RandomTeleportPoint = selected;
+        else
+            ui.Profile.TeleportPoint = selected;
         RefreshProfileUi(ui);
         TrySave();
     }
@@ -1854,7 +1963,9 @@ sealed class MainForm : Form
 
         var points = new List<(Point Point, string Label, Color Color)>();
         if (ui.Profile.TeleportPoint.Configured)
-            points.Add((ToPoint(ui.Profile.TeleportPoint), "1 Item de teleporte", Color.Red));
+            points.Add((ToPoint(ui.Profile.TeleportPoint), "1 Safe", Color.Red));
+        if (ui.Profile.RandomTeleportPoint.Configured)
+            points.Add((ToPoint(ui.Profile.RandomTeleportPoint), "1 Random", Color.Magenta));
         if (ui.Profile.SpotMenuPoint.Configured)
             points.Add((ToPoint(ui.Profile.SpotMenuPoint), "2 Abrir spots", Color.Orange));
         for (var index = 0; index < ui.Profile.Spots.Count; index++)
@@ -2454,7 +2565,8 @@ sealed class MainForm : Form
         if (!ui.Profile.ProtectionEnabled || ui.Window.SelectedItem is not WindowChoice choice)
             return false;
 
-        if (!Click(ui.Profile.TeleportPoint.X, ui.Profile.TeleportPoint.Y, "Item de teleporte"))
+        var teleport = SelectedTeleport(ui.Profile);
+        if (!Click(teleport.X, teleport.Y, $"Teleporte {(UsesRandomTeleport(ui.Profile) ? "Random" : "Safe")}"))
             return false;
 
         if (spot is null)
@@ -2704,7 +2816,8 @@ sealed class MainForm : Form
             MessageBox.Show(this, "Pare a proteção antes de testar a compatibilidade.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        if (ui.Window.SelectedItem is not WindowChoice choice || !ui.Profile.TeleportPoint.Configured)
+        var teleport = SelectedTeleport(ui.Profile);
+        if (ui.Window.SelectedItem is not WindowChoice choice || !teleport.Configured)
         {
             MessageBox.Show(this, "Escolha a janela e marque o item de teleporte primeiro.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
@@ -2719,8 +2832,8 @@ sealed class MainForm : Form
         await Task.Delay(5000);
         if (NativeMethods.TryBackgroundClick(
                 choice.Handle,
-                ui.Profile.TeleportPoint.X,
-                ui.Profile.TeleportPoint.Y,
+                teleport.X,
+                teleport.Y,
                 out var error))
         {
             SetStatus("Clique em segundo plano enviado. Confira se o item de teleporte abriu.");
@@ -2889,27 +3002,32 @@ sealed class MainForm : Form
         if (ui.State == ProfileState.SessionExpired)
         {
             ui.Progress.Text = "Sessão encerrada";
+            RefreshOverview(ui);
             return;
         }
         if (ui.State == ProfileState.Completed)
         {
             ui.Progress.Text = $"Concluído\r\n{ui.CompletedCycles}/{ui.Profile.CycleCount} ciclos";
+            RefreshOverview(ui);
             return;
         }
         if (!ui.Profile.UseSpots)
         {
             ui.Progress.Text = "Somente teleporte";
+            RefreshOverview(ui);
             return;
         }
         var activeCount = ui.Profile.Spots.Count(item => item.Enabled);
         if (activeCount == 0)
         {
             ui.Progress.Text = "Ative ao menos um spot.";
+            RefreshOverview(ui);
             return;
         }
         ui.NextSpotIndex = FindEnabledSpot(ui.Profile.Spots, ui.NextSpotIndex);
         var cycle = Math.Min(ui.CompletedCycles + 1, ui.Profile.CycleCount);
         ui.Progress.Text = $"{ui.Profile.Spots[ui.NextSpotIndex].Name}\r\nCiclo {cycle}/{ui.Profile.CycleCount} • {activeCount} ativo(s)";
+        RefreshOverview(ui);
     }
 
     void RefreshProfileUi(ProfileUi ui)
@@ -2919,8 +3037,14 @@ sealed class MainForm : Form
             ? $"✓ {ui.Profile.HealthBar.Width} × {ui.Profile.HealthBar.Height}"
             : ui.Profile.HealthBar.IsConfigured ? "Remarque com a vida cheia" : "Não configurado";
         ui.BarStatus.ForeColor = barConfigured ? Acid : Coral;
-        ui.TeleportStatus.Text = ui.Profile.TeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
-        ui.TeleportStatus.ForeColor = ui.Profile.TeleportPoint.Configured ? Acid : Coral;
+        var selectedTeleport = SelectedTeleport(ui.Profile);
+        var teleportName = UsesRandomTeleport(ui.Profile) ? "RANDOM" : "SAFE";
+        ui.TeleportStatus.Text = selectedTeleport.Configured ? $"{teleportName} • ✓ Ponto selecionado" : $"{teleportName} • Não configurado";
+        ui.TeleportStatus.ForeColor = selectedTeleport.Configured ? Acid : Coral;
+        ui.SafeTeleportStatus.Text = ui.Profile.TeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
+        ui.SafeTeleportStatus.ForeColor = ui.Profile.TeleportPoint.Configured ? Acid : Coral;
+        ui.RandomTeleportStatus.Text = ui.Profile.RandomTeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
+        ui.RandomTeleportStatus.ForeColor = ui.Profile.RandomTeleportPoint.Configured ? Acid : Coral;
         var spotWindowConfigured = ui.Profile.SpotWindowRegion.IsConfigured && ui.SpotWindowReference is not null;
         ui.SpotWindowStatus.Text = spotWindowConfigured
             ? $"✓ {ui.Profile.SpotWindowRegion.Width} × {ui.Profile.SpotWindowRegion.Height}"
@@ -2944,6 +3068,12 @@ sealed class MainForm : Form
         UpdateTime(ui);
     }
 
+    static bool UsesRandomTeleport(WindowProfile profile) =>
+        string.Equals(profile.TeleportMode, "Random", StringComparison.OrdinalIgnoreCase);
+
+    static ClickPointConfig SelectedTeleport(WindowProfile profile) =>
+        UsesRandomTeleport(profile) ? profile.RandomTeleportPoint : profile.TeleportPoint;
+
     static TimeSpan SessionLimit(ProfileUi ui) => TimeSpan.FromMinutes(ui.Profile.SessionLimitMinutes);
 
     static bool HasSessionExpired(ProfileUi ui) =>
@@ -2952,7 +3082,7 @@ sealed class MainForm : Form
     static bool HasSessionExpired(TimeSpan elapsed, int limitMinutes) =>
         elapsed >= TimeSpan.FromMinutes(limitMinutes);
 
-    static void UpdateTime(ProfileUi ui)
+    void UpdateTime(ProfileUi ui)
     {
         var active = ui.SessionWatch.Elapsed;
         var remaining = SessionLimit(ui) - active;
@@ -2960,6 +3090,7 @@ sealed class MainForm : Form
             remaining = TimeSpan.Zero;
         ui.TimeLabel.Text = FormatTime(active);
         ui.RemainingTimeLabel.Text = FormatTime(remaining);
+        RefreshOverview(ui);
     }
 
     void ExpireProfile(ProfileUi ui)
@@ -3001,12 +3132,13 @@ sealed class MainForm : Form
         previous?.Dispose();
     }
 
-    static void SetLifeReading(ProfileUi ui, double life, double loss)
+    void SetLifeReading(ProfileUi ui, double life, double loss)
     {
         var safeLife = Math.Clamp(life, 0, 100);
         ui.LifeMeter.Value = (int)Math.Round(safeLife);
         ui.LifePercent.Text = $"{safeLife:F0}%";
         ui.LifeLoss.Text = $"Queda {Math.Clamp(loss, 0, 100):F1}%";
+        RefreshOverview(ui);
     }
 
     static string? AskName(string current)
@@ -3179,6 +3311,17 @@ sealed class MainForm : Form
         };
         if (!profile.IsConfigured)
             throw new InvalidOperationException("O modo sem spots deveria estar configurado.");
+        profile.TeleportMode = "Random";
+        if (profile.IsConfigured)
+            throw new InvalidOperationException("O modo Random deveria exigir seu próprio ponto.");
+        profile.RandomTeleportPoint = new ClickPointConfig { Configured = true };
+        if (!profile.IsConfigured)
+            throw new InvalidOperationException("O modo Random configurado deveria estar pronto.");
+        if (!ReferenceEquals(SelectedTeleport(profile), profile.RandomTeleportPoint))
+            throw new InvalidOperationException("O modo Random não selecionou o ponto correto.");
+        profile.TeleportMode = "Safe";
+        if (!ReferenceEquals(SelectedTeleport(profile), profile.TeleportPoint))
+            throw new InvalidOperationException("O modo Safe não selecionou o ponto correto.");
         profile.UseSpots = true;
         if (profile.IsConfigured)
             throw new InvalidOperationException("O modo com spots deveria exigir a rota completa.");
@@ -3190,10 +3333,13 @@ sealed class MainForm : Form
         if (!profile.IsConfigured)
             throw new InvalidOperationException("A rota completa de spots deveria estar configurada.");
         profile.TeleportRetryCount = 99;
+        profile.TeleportMode = "inválido";
         var config = new AppConfig { Windows = [profile, new()] };
         config.Normalize();
         if (profile.TeleportRetryCount != 20)
             throw new InvalidOperationException("Falha no limite de tentativas do teleporte.");
+        if (profile.TeleportMode != "Safe")
+            throw new InvalidOperationException("Um tipo de teleporte inválido deveria voltar para Safe.");
     }
 
     enum ProfileState
@@ -3208,12 +3354,25 @@ sealed class MainForm : Form
         Error
     }
 
+    sealed record OverviewUi(
+        Label Target,
+        Label Protection,
+        Label Life,
+        Label Loss,
+        Label State,
+        Label Detail,
+        Label Next,
+        Label Time,
+        Label Remaining);
+
     sealed class ProfileUi : IDisposable
     {
         public WindowProfile Profile { get; }
         public ComboBox Window { get; }
         public Label BarStatus { get; }
         public Label TeleportStatus { get; }
+        public Label SafeTeleportStatus { get; }
+        public Label RandomTeleportStatus { get; }
         public Label SpotWindowStatus { get; }
         public Label SpotMenuStatus { get; }
         public Label ConfirmTeleportStatus { get; }
@@ -3248,6 +3407,8 @@ sealed class MainForm : Form
             ComboBox window,
             Label barStatus,
             Label teleportStatus,
+            Label safeTeleportStatus,
+            Label randomTeleportStatus,
             Label spotWindowStatus,
             Label spotMenuStatus,
             Label confirmTeleportStatus,
@@ -3268,6 +3429,8 @@ sealed class MainForm : Form
             Window = window;
             BarStatus = barStatus;
             TeleportStatus = teleportStatus;
+            SafeTeleportStatus = safeTeleportStatus;
+            RandomTeleportStatus = randomTeleportStatus;
             SpotWindowStatus = spotWindowStatus;
             SpotMenuStatus = spotMenuStatus;
             ConfirmTeleportStatus = confirmTeleportStatus;

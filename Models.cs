@@ -42,6 +42,8 @@ sealed class WindowProfile
     public ScreenRegion HealthBar { get; set; } = new();
     public int FullHealthRedWidth { get; set; }
     public ClickPointConfig TeleportPoint { get; set; } = new();
+    public ClickPointConfig RandomTeleportPoint { get; set; } = new();
+    public string TeleportMode { get; set; } = "Safe";
     public ScreenRegion SpotWindowRegion { get; set; } = new();
     public byte[] SpotWindowReferencePng { get; set; } = [];
     public ClickPointConfig SpotMenuPoint { get; set; } = new();
@@ -60,7 +62,9 @@ sealed class WindowProfile
     [JsonIgnore]
     public bool IsConfigured => HealthBar.IsConfigured
                                 && FullHealthRedWidth > 0
-                                && TeleportPoint.Configured
+                                && (string.Equals(TeleportMode, "Random", StringComparison.OrdinalIgnoreCase)
+                                    ? RandomTeleportPoint.Configured
+                                    : TeleportPoint.Configured)
                                 && (!UseSpots
                                     || (SpotWindowRegion.IsConfigured
                                         && SpotWindowReferencePng.Length > 0
@@ -71,13 +75,13 @@ sealed class WindowProfile
 
 sealed class AppConfig
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
     public int CaptureIntervalMs { get; set; } = 300;
     public List<WindowProfile> Windows { get; set; } = [];
 
     public void Normalize()
     {
-        SchemaVersion = 4;
+        SchemaVersion = 5;
         CaptureIntervalMs = Math.Clamp(CaptureIntervalMs, 100, 2000);
         while (Windows.Count < 2)
             Windows.Add(new WindowProfile { Name = $"Janela {Windows.Count + 1}" });
@@ -89,6 +93,10 @@ sealed class AppConfig
             profile.HealthBar ??= new ScreenRegion();
             profile.FullHealthRedWidth = Math.Clamp(profile.FullHealthRedWidth, 0, Math.Max(0, profile.HealthBar.Width));
             profile.TeleportPoint ??= new ClickPointConfig();
+            profile.RandomTeleportPoint ??= new ClickPointConfig();
+            profile.TeleportMode = string.Equals(profile.TeleportMode, "Random", StringComparison.OrdinalIgnoreCase)
+                ? "Random"
+                : "Safe";
             profile.SpotWindowRegion ??= new ScreenRegion();
             profile.SpotWindowReferencePng ??= [];
             profile.SpotMenuPoint ??= new ClickPointConfig();
