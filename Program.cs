@@ -89,6 +89,9 @@ static class Program
                 Application.DoEvents();
                 if (RequiredVisible(form, "LifeActions").Width > 270)
                     throw new InvalidOperationException("Os botões da barra voltaram a se afastar da leitura.");
+                var lifePercent = (Label)RequiredVisible(form, "LifePercent");
+                if (lifePercent.ClientSize.Height < lifePercent.GetPreferredSize(Size.Empty).Height)
+                    throw new InvalidOperationException("O percentual da vida está recortado verticalmente.");
 
                 FindAll(form).OfType<Button>().First(button => button.Text.Contains("SESSÃO")).PerformClick();
                 Application.DoEvents();

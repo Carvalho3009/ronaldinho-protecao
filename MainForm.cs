@@ -529,7 +529,7 @@ sealed class MainForm : Form
 
         var lifePanel = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1 };
         lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        lifePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         lifePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         lifePanel.Controls.Add(new Label
@@ -543,6 +543,7 @@ sealed class MainForm : Form
         {
             Name = "LifePercent",
             Text = "--%",
+            AutoSize = true,
             Dock = DockStyle.Fill,
             ForeColor = Coral,
             Font = new Font("Arial Narrow", 40F, FontStyle.Bold),
