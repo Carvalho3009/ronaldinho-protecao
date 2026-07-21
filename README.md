@@ -1,6 +1,8 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 1.1.3 — Dibre a concorrência**
+**Versão 1.2.0 — Dibre a concorrência**
+
+A versão 1.2.0 apresenta a nova interface modular: navegação lateral fixa, visão geral em quatro cartões e configurações técnicas separadas da operação diária. Em telas menores, a área principal possui rolagem para manter todos os comandos acessíveis sem cortar os módulos.
 
 Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e pode executar uma sequência de teleporte e spots quando a vida cair além do limite configurado.
 
@@ -38,8 +40,8 @@ Repita estes passos nas abas **Janela 1** e **Janela 2** que desejar usar.
 ### 1. Escolha a janela
 
 1. Selecione a janela correta na lista.
-2. Mantenha **Proteção ativa nesta janela** marcada para monitorá-la.
-3. Use **Executar em segundo plano** para não mover o mouse nem entregar o foco ao jogo.
+2. Ative **Proteção ativa** para monitorá-la.
+3. Use **Segundo plano** para não mover o mouse nem entregar o foco ao jogo.
 
 A proteção pode ser ativada ou desativada individualmente durante a sessão. Desativar uma janela preserva o tempo e a posição atual da sequência; a outra continua funcionando.
 
@@ -48,7 +50,7 @@ A proteção pode ser ativada ou desativada individualmente durante a sessão. D
 Este passo precisa ser feito com a vida realmente em 100%.
 
 1. Recupere completamente a vida.
-2. Clique em **Marcar barra de vida**.
+2. Na visão geral, abra o cartão **Barra de vida** e clique em **Marcar barra**.
 3. Arraste o retângulo exatamente sobre a barra, incluindo toda a extensão que o vermelho ocupa quando cheia.
 4. Confirme a marcação.
 5. Confira se o visualizador mostra **Vida: 100%**.
@@ -57,39 +59,39 @@ O programa mede somente a largura vermelha. Números brancos, fundo, moldura e f
 
 ### 3. Marque o item de teleporte
 
-1. Clique em **Marcar item de teleporte**.
+1. No cartão **Teleporte**, clique em **Marcar item**.
 2. Clique na posição do item que deve ser usado quando a vida cair.
 
 ### 4. Defina o limite
 
-Em **Reagir quando a vida cair pelo menos**, informe a queda permitida.
+Em **Reagir ao cair**, informe a queda permitida.
 
 Exemplo: limite de `40%` executa a reação quando a vida chegar aproximadamente a `60%` ou menos.
 
 ## Usando somente o teleporte
 
-Desmarque **Após teleportar, escolher um spot**. Quando o limite for atingido, o programa clicará somente no item de teleporte.
+Desative **Usar spots** no cartão **Rota de spots**. Quando o limite for atingido, o programa clicará somente no item de teleporte.
 
 ## Configurando spots
 
 Se quiser escolher um spot após usar o item de teleporte:
 
-1. Marque **Após teleportar, escolher um spot**.
+1. Ative **Usar spots** no cartão **Rota de spots**.
 2. Abra manualmente a janela de spots no jogo.
-3. Clique em **Marcar janela de spots** e selecione a área usada para reconhecer essa janela.
-4. Clique em **Marcar botão Abrir spots** e marque o botão que abre o menu.
-5. Clique em **Marcar botão Teleportar** e marque o botão de confirmação.
-6. Use **Adicionar spot** para cadastrar cada posição desejada.
-7. Marque na lista somente os spots que participarão da sequência.
-8. Defina quantas vezes a lista completa será repetida.
+3. Clique em **Configurações** na barra lateral.
+4. Em **Marcações da rota**, use **Janela de spots** para selecionar a área que identifica o menu.
+5. Use **Abrir menu** para marcar o botão que abre os spots.
+6. Use **Botão Teleportar** para marcar o botão de confirmação.
+7. Volte à **Visão geral** e use **+** no cartão **Rota de spots** para cadastrar cada posição.
+8. Ative na lista somente os spots que participarão da sequência e defina quantas vezes a rota será repetida.
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-Em **Opções avançadas**, ajuste **Tentativas no botão Teleportar**. Após cada clique, o programa verifica se a janela de spots fechou. Se ela continuar aberta por stagger ou lag, o botão é acionado novamente usando o **Intervalo entre cliques**. Se todas as tentativas falharem, a proteção daquela janela pausa sem avançar o spot ou o ciclo.
+Em **Configurações**, ajuste **Tentativas no botão Teleportar**. Após cada clique, o programa verifica se a janela de spots fechou. Se ela continuar aberta por stagger ou lag, o botão é acionado novamente usando o **Intervalo entre cliques**. Se todas as tentativas falharem, a proteção daquela janela pausa sem avançar o spot ou o ciclo.
 
 ## Tempo da sessão
 
-Defina o limite de horas e minutos para cada janela. O contador considera apenas o tempo em que aquela proteção está ativa. Ao terminar, a janela é desativada automaticamente.
+Em **Configurações > Limite da sessão**, defina as horas e os minutos de cada janela. O contador considera apenas o tempo em que aquela proteção está ativa. Ao terminar, a janela é desativada automaticamente. A visão geral mostra o tempo ativo e o restante no cartão **Sessão**.
 
 ## Iniciando
 
@@ -106,7 +108,7 @@ Se a barra desaparecer ou a captura parar, somente aquela janela entra em **Proc
 
 - Feche o programa e abra `ControlarTela.exe` como administrador.
 - Confirme que a janela escolhida ainda é a correta.
-- Use os botões de teste antes de iniciar a proteção.
+- Em **Configurações**, use os botões de teste antes de iniciar a proteção.
 
 ### A captura não encontra a barra
 
