@@ -24,6 +24,13 @@ As configurações são salvas somente para o usuário atual em:
 
 `%LOCALAPPDATA%\ControlarTela\config.json`
 
+## Atualizações automáticas
+
+Ao abrir, o programa consulta a versão mais recente publicada em
+[`Carvalho3009/ronaldinho-protecao`](https://github.com/Carvalho3009/ronaldinho-protecao/releases).
+Quando houver uma versão nova, escolha **Sim** para baixar, substituir o executável e reiniciar automaticamente.
+Também é possível usar **Verificar atualização** no topo da tela.
+
 ## Configurando cada janela
 
 Repita estes passos nas abas **Janela 1** e **Janela 2** que desejar usar.

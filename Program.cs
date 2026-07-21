@@ -9,6 +9,7 @@ static class Program
         {
             NativeMethods.RunSelfTest();
             Recognition.RunSelfTest();
+            Updater.RunSelfTest();
             MainForm.RunSelfTest();
             ApplicationConfiguration.Initialize();
             using var form = new MainForm();

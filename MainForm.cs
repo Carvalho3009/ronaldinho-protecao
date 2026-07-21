@@ -19,6 +19,7 @@ sealed class MainForm : Form
     bool _running;
     bool _busy;
     bool _loading;
+    bool _checkingUpdate;
 
     public MainForm()
     {
@@ -35,6 +36,7 @@ sealed class MainForm : Form
         BuildInterface();
         ApplyBrandTheme(this);
         RefreshWindows();
+        Shown += async (_, _) => await CheckForUpdatesAsync();
         if (warning is not null)
             SetStatus(warning, true);
 
@@ -56,11 +58,12 @@ sealed class MainForm : Form
             Dock = DockStyle.Top,
             Height = 92,
             Padding = new Padding(18, 10, 18, 10),
-            ColumnCount = 4,
+            ColumnCount = 5,
             BackColor = Ink
         };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
@@ -95,10 +98,15 @@ sealed class MainForm : Form
         });
         top.Controls.Add(heading, 1, 0);
 
+        var checkUpdate = new Button { Text = "Verificar atualização", AutoSize = true };
+        checkUpdate.Tag = "secondary";
+        checkUpdate.Click += async (_, _) => await CheckForUpdatesAsync(true);
+        top.Controls.Add(checkUpdate, 2, 0);
+
         var refresh = new Button { Text = "Atualizar janelas", AutoSize = true };
         refresh.Tag = "secondary";
         refresh.Click += (_, _) => RefreshWindows();
-        top.Controls.Add(refresh, 2, 0);
+        top.Controls.Add(refresh, 3, 0);
 
         _startStop.Text = "Iniciar proteção";
         _startStop.AutoSize = true;
@@ -111,7 +119,7 @@ sealed class MainForm : Form
             else
                 await StartProtectionAsync();
         };
-        top.Controls.Add(_startStop, 3, 0);
+        top.Controls.Add(_startStop, 4, 0);
 
         var tabs = new TabControl
         {
@@ -2127,6 +2135,49 @@ sealed class MainForm : Form
     {
         _status.Text = message;
         _status.ForeColor = error ? Coral : Muted;
+    }
+
+    async Task CheckForUpdatesAsync(bool reportLatest = false)
+    {
+        if (_checkingUpdate)
+            return;
+        _checkingUpdate = true;
+        try
+        {
+            SetStatus("Verificando atualizações...");
+            var update = await Updater.CheckAsync();
+            if (update is null)
+            {
+                SetStatus($"Ronaldinho v{Updater.CurrentVersion.ToString(3)} está atualizado.");
+                if (reportLatest)
+                    MessageBox.Show(this, "Você já está usando a versão mais recente.", "Atualização",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var answer = MessageBox.Show(this,
+                $"A versão {update.Tag} está disponível. Deseja baixar, instalar e reiniciar agora?",
+                "Atualização disponível", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (answer != DialogResult.Yes)
+            {
+                SetStatus($"Atualização {update.Tag} disponível.");
+                return;
+            }
+
+            SetStatus($"Baixando atualização {update.Tag}...");
+            await Updater.InstallAndRestartAsync(update);
+            Application.Exit();
+        }
+        catch (Exception error)
+        {
+            SetStatus($"Não foi possível verificar atualizações: {error.Message}", true);
+            if (reportLatest)
+                MessageBox.Show(this, error.Message, "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _checkingUpdate = false;
+        }
     }
 
     static (int NextSpot, int CompletedCycles, bool Finished) AdvanceSequence(
