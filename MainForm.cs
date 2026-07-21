@@ -403,23 +403,25 @@ sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 7,
-            Padding = new Padding(10, 13, 10, 6)
+            Padding = new Padding(10, 4, 10, 1)
         };
-        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         var useSpots = new BrandToggle
         {
-            Text = "USAR SPOTS",
+            Name = "UseSpots",
+            Text = "SPOTS",
             Checked = profile.UseSpots,
-            Dock = DockStyle.Right,
-            Width = 190
+            Dock = DockStyle.None,
+            Width = 155,
+            Height = 34,
+            Margin = new Padding(3, 1, 3, 1)
         };
-        spotsLayout.Controls.Add(useSpots, 0, 0);
 
         var markers = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
@@ -451,14 +453,30 @@ sealed class MainForm : Form
         markers.Controls.Add(confirmTeleportLine, 2, 0);
         spotsLayout.Controls.Add(markers, 0, 1);
 
-        var markerTools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var markerTools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         var spotMatch = new Label { Text = "Semelhança atual: --", AutoSize = true, Margin = new Padding(3, 8, 14, 0) };
-        var showMarks = new Button { Text = "MOSTRAR MARCAÇÕES", AutoSize = true };
+        var showMarks = new Button
+        {
+            Text = "MOSTRAR MARCAÇÕES",
+            AutoSize = false,
+            Width = 210,
+            Height = 34,
+            Margin = new Padding(3, 1, 3, 1)
+        };
         markerTools.Controls.Add(spotMatch);
         markerTools.Controls.Add(showMarks);
+        markerTools.Controls.Add(useSpots);
         spotsLayout.Controls.Add(markerTools, 0, 2);
 
-        var spots = new CheckedListBox { Name = "SpotsList", Dock = DockStyle.Fill, CheckOnClick = true };
+        var spots = new CheckedListBox
+        {
+            Name = "SpotsList",
+            Dock = DockStyle.Fill,
+            CheckOnClick = true,
+            IntegralHeight = false,
+            Font = new Font("Bahnschrift Condensed", 8.5F),
+            ItemHeight = 18
+        };
         spotsLayout.Controls.Add(spots, 0, 4);
 
         var spotButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };

@@ -34,10 +34,13 @@ static class Program
                                   || page.Controls.Find("SessionGroup", true).Length != 1
                                   || page.Controls.Find("AdvancedGroup", true).Length != 1))
                 throw new InvalidOperationException("A interface visual compacta não foi montada por completo.");
-            foreach (var name in new[] { "RefreshWindows", "StartStop", "WindowSelector", "ProtectionEnabled" })
+            foreach (var name in new[] { "RefreshWindows", "StartStop", "WindowSelector", "ProtectionEnabled", "UseSpots" })
                 AssertInside(RequiredVisible(form, name));
             foreach (var text in new[] { "JANELA DE SPOTS", "ABRIR MENU", "BOTÃO TELEPORTAR", "＋", "REMOVER", "⌖ RECALIBRAR", "▷ TESTAR REAÇÃO" })
                 AssertInside(RequiredVisibleButton(form, text));
+            var spotsList = (CheckedListBox)RequiredVisible(form, "SpotsList");
+            if (spotsList.ClientSize.Height / spotsList.ItemHeight < 5)
+                throw new InvalidOperationException("A lista de spots deve exibir cinco linhas completas.");
             var advancedToggle = (CheckBox)RequiredVisible(form, "AdvancedToggle");
             advancedToggle.Checked = true;
             Application.DoEvents();
