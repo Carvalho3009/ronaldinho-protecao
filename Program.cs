@@ -16,12 +16,16 @@ static class Program
             form.CreateControl();
             if (form.BackColor != Color.FromArgb(7, 9, 9))
                 throw new InvalidOperationException("A identidade visual Ronaldinho não foi aplicada.");
-            var tabs = form.Controls.OfType<TabControl>().Single();
-            if (tabs.TabCount != 2)
+            var pages = form.Controls.Find("WindowPage", true);
+            if (pages.Length != 2)
                 throw new InvalidOperationException("A interface deve conter exatamente duas janelas.");
-            if (tabs.TabPages.Cast<TabPage>().Any(page =>
+            if (pages.Any(page =>
                     page.Controls.Find("ProtectionEnabled", true).Length != 1))
                 throw new InvalidOperationException("Cada janela deve permitir ativar ou desativar a proteção.");
+            if (pages.Any(page => page.Controls.Find("LifePercent", true).Length != 1
+                                  || page.Controls.Find("SpotsList", true).Length != 1
+                                  || page.Controls.Find("SessionGroup", true).Length != 1))
+                throw new InvalidOperationException("A interface visual compacta não foi montada por completo.");
             return 0;
         }
 

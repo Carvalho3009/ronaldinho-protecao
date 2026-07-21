@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 1.1.0 — Dibre a concorrência**
+**Versão 1.1.1 — Dibre a concorrência**
 
 Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e pode executar uma sequência de teleporte e spots quando a vida cair além do limite configurado.
 

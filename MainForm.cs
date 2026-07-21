@@ -15,6 +15,7 @@ sealed class MainForm : Form
     readonly List<ProfileUi> _profiles = [];
     readonly System.Windows.Forms.Timer _timer = new();
     readonly Button _startStop = new();
+    readonly Button _updateStatus = new();
     readonly Label _status = new();
     bool _running;
     bool _busy;
@@ -25,13 +26,13 @@ sealed class MainForm : Form
     {
         _config = ConfigStore.Load(out var warning);
         Text = "Ronaldinho • Proteção por Barra de Vida";
-        Width = 1400;
-        Height = 900;
-        MinimumSize = new Size(1120, 760);
+        Width = 1600;
+        Height = 1000;
+        MinimumSize = new Size(1280, 820);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Ink;
         ForeColor = Bone;
-        Font = new Font("Segoe UI", 9F);
+        Font = new Font("Bahnschrift Condensed", 9.5F);
 
         BuildInterface();
         ApplyBrandTheme(this);
@@ -58,12 +59,11 @@ sealed class MainForm : Form
             Dock = DockStyle.Top,
             Height = 92,
             Padding = new Padding(18, 10, 18, 10),
-            ColumnCount = 5,
+            ColumnCount = 4,
             BackColor = Ink
         };
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 285));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
@@ -90,25 +90,30 @@ sealed class MainForm : Form
             ForeColor = Bone,
             Font = new Font("Arial Narrow", 19F, FontStyle.Bold)
         });
-        heading.Controls.Add(new Label
+        var versionLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        versionLine.Controls.Add(new Label
         {
             Text = $"v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}",
             AutoSize = true,
-            ForeColor = Gold
+            ForeColor = Muted,
+            Margin = new Padding(0, 5, 10, 0)
         });
+        _updateStatus.Text = "ATUALIZAÇÕES";
+        _updateStatus.AutoSize = true;
+        _updateStatus.MinimumSize = new Size(92, 23);
+        _updateStatus.Font = new Font("Arial Narrow", 8F, FontStyle.Bold);
+        _updateStatus.Tag = "badge";
+        _updateStatus.Click += async (_, _) => await CheckForUpdatesAsync(true);
+        versionLine.Controls.Add(_updateStatus);
+        heading.Controls.Add(versionLine);
         top.Controls.Add(heading, 1, 0);
 
-        var checkUpdate = new Button { Text = "Verificar atualização", AutoSize = true };
-        checkUpdate.Tag = "secondary";
-        checkUpdate.Click += async (_, _) => await CheckForUpdatesAsync(true);
-        top.Controls.Add(checkUpdate, 2, 0);
-
-        var refresh = new Button { Text = "Atualizar janelas", AutoSize = true };
+        var refresh = new Button { Text = "↻  ATUALIZAR JANELAS", AutoSize = true };
         refresh.Tag = "secondary";
         refresh.Click += (_, _) => RefreshWindows();
-        top.Controls.Add(refresh, 3, 0);
+        top.Controls.Add(refresh, 2, 0);
 
-        _startStop.Text = "Iniciar proteção";
+        _startStop.Text = "⛨  INICIAR PROTEÇÃO";
         _startStop.AutoSize = true;
         _startStop.Tag = "primary";
         _startStop.BackColor = Acid;
@@ -119,19 +124,43 @@ sealed class MainForm : Form
             else
                 await StartProtectionAsync();
         };
-        top.Controls.Add(_startStop, 4, 0);
+        top.Controls.Add(_startStop, 3, 0);
 
-        var tabs = new TabControl
+        var tabHost = new Panel { Dock = DockStyle.Fill, BackColor = Ink };
+        var tabBar = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
-            DrawMode = TabDrawMode.OwnerDrawFixed,
-            ItemSize = new Size(150, 38),
-            SizeMode = TabSizeMode.Fixed,
-            Padding = new Point(18, 5)
+            Dock = DockStyle.Top,
+            Height = 46,
+            WrapContents = false,
+            Padding = new Padding(18, 4, 0, 0),
+            BackColor = Ink
         };
-        tabs.DrawItem += DrawBrandTab;
+        var pageHost = new Panel { Dock = DockStyle.Fill, BackColor = Ink };
+        var pages = new List<Panel>();
+        var tabButtons = new List<Button>();
         foreach (var profile in _config.Windows)
-            tabs.TabPages.Add(BuildProfileTab(profile));
+        {
+            var page = BuildProfilePage(profile);
+            page.Visible = false;
+            pages.Add(page);
+            pageHost.Controls.Add(page);
+
+            var index = pages.Count - 1;
+            var tab = new Button
+            {
+                Text = profile.Name.ToUpperInvariant(),
+                Width = 165,
+                Height = 40,
+                Margin = new Padding(0, 0, 6, 0),
+                Tag = "tab"
+            };
+            tab.Click += (_, _) => SelectPage(index);
+            tabButtons.Add(tab);
+            tabBar.Controls.Add(tab);
+        }
+        SelectPage(0);
+        tabHost.Controls.Add(pageHost);
+        tabHost.Controls.Add(tabBar);
 
         _status.Dock = DockStyle.Bottom;
         _status.Height = 36;
@@ -140,122 +169,179 @@ sealed class MainForm : Form
         _status.ForeColor = Muted;
         _status.Text = "Configure ao menos uma janela.";
 
-        Controls.Add(tabs);
+        Controls.Add(tabHost);
         Controls.Add(top);
         Controls.Add(_status);
+
+        void SelectPage(int selected)
+        {
+            for (var index = 0; index < pages.Count; index++)
+            {
+                pages[index].Visible = index == selected;
+                tabButtons[index].Tag = index == selected ? "tabSelected" : "tab";
+                StyleButton(tabButtons[index]);
+            }
+            pages[selected].BringToFront();
+        }
     }
 
-    TabPage BuildProfileTab(WindowProfile profile)
+    Panel BuildProfilePage(WindowProfile profile)
     {
-        var page = new TabPage(profile.Name) { BackColor = Ink, ForeColor = Bone };
+        var page = new Panel { Name = "WindowPage", Dock = DockStyle.Fill, BackColor = Ink, ForeColor = Bone };
+        var viewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Ink };
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            Height = 788,
             ColumnCount = 2,
             RowCount = 4,
-            Padding = new Padding(14),
+            Padding = new Padding(18, 8, 18, 8),
             BackColor = Ink
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 116));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 122));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 430));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
 
         var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-        left.RowStyles.Add(new RowStyle(SizeType.Percent, 74));
-        left.RowStyles.Add(new RowStyle(SizeType.Percent, 26));
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 302));
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 1 };
 
-        var windowGroup = Group("JANELA DO JOGO", 100);
+        var windowGroup = Group("JANELA CONFIGURADA", 82);
         var windowCombo = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Width = 420,
-            Margin = new Padding(0)
+            Dock = DockStyle.Bottom,
+            Margin = new Padding(0),
+            Height = 30
         };
-        var windowFlow = new FlowLayoutPanel
+        var windowLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            Padding = new Padding(12, 22, 8, 4)
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(12, 13, 12, 5)
         };
-        var backgroundMode = new CheckBox
+        windowLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        windowLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 27));
+        windowLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        var windowSelector = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 20, 0) };
+        windowSelector.Controls.Add(windowCombo);
+        windowSelector.Controls.Add(new Label
         {
-            Text = "Executar em segundo plano (não usa mouse nem foco)",
+            Text = "JANELA DO JOGO SELECIONADA",
+            Dock = DockStyle.Top,
+            Height = 20,
+            ForeColor = Muted,
+            Font = new Font("Arial Narrow", 8.5F, FontStyle.Bold)
+        });
+        var backgroundMode = new BrandToggle
+        {
+            Text = "SEGUNDO PLANO",
             Checked = profile.BackgroundMode,
-            AutoSize = true,
-            Margin = new Padding(28, 6, 3, 3)
+            Dock = DockStyle.Fill
         };
-        var protectionEnabled = new CheckBox
+        var protectionEnabled = new BrandToggle
         {
             Name = "ProtectionEnabled",
-            Text = "Proteção ativa nesta janela",
+            Text = "PROTEÇÃO ATIVA",
             Checked = profile.ProtectionEnabled,
-            AutoSize = true,
-            Margin = new Padding(28, 6, 3, 3)
+            Dock = DockStyle.Fill
         };
-        windowFlow.Controls.Add(windowCombo);
-        windowFlow.Controls.Add(protectionEnabled);
-        windowFlow.Controls.Add(backgroundMode);
-        windowGroup.Controls.Add(windowFlow);
+        windowLayout.Controls.Add(windowSelector, 0, 0);
+        windowLayout.Controls.Add(protectionEnabled, 1, 0);
+        windowLayout.Controls.Add(backgroundMode, 2, 0);
+        windowGroup.Controls.Add(windowLayout);
         root.Controls.Add(windowGroup, 0, 0);
         root.SetColumnSpan(windowGroup, 2);
 
-        var barGroup = Group("1  BARRA DE VIDA", 300);
-        var barFlow = VerticalPanel(false);
-        barFlow.Padding = new Padding(8, 14, 8, 4);
-        var barLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        var selectBar = new Button { Text = "Marcar barra de vida", AutoSize = true };
+        var barGroup = Group("1  BARRA DE VIDA", 294);
+        var barLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 3,
+            Padding = new Padding(10, 14, 10, 7)
+        };
+        barLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+        barLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        barLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        barLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        barLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+
+        var barLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var selectBar = new Button { Text = "⌖  MARCAR BARRA", AutoSize = true };
         var barStatus = StepStatus();
         barLine.Controls.Add(selectBar);
         barLine.Controls.Add(barStatus);
-        barFlow.Controls.Add(barLine);
+        barLayout.Controls.Add(barLine, 0, 0);
+        barLayout.SetColumnSpan(barLine, 2);
 
         var preview = new PictureBox
         {
-            Width = 455,
-            Height = 105,
+            Dock = DockStyle.Fill,
+            Name = "HealthPreview",
             BorderStyle = BorderStyle.FixedSingle,
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(35, 35, 35)
+            BackColor = Color.FromArgb(18, 22, 21),
+            Margin = new Padding(4, 3, 20, 5)
         };
-        barFlow.Controls.Add(preview);
+        barLayout.Controls.Add(preview, 0, 1);
 
-        var readingLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Width = 455 };
-        var lifeMeter = new ProgressBar { Minimum = 0, Maximum = 100, Value = 0, Width = 175, Height = 24 };
+        var lifePanel = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1 };
+        lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        lifePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        lifePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        lifePanel.Controls.Add(new Label
+        {
+            Text = "VIDA",
+            Dock = DockStyle.Fill,
+            ForeColor = Muted,
+            Font = new Font("Arial Narrow", 9F, FontStyle.Bold)
+        }, 0, 0);
         var lifePercent = new Label
         {
-            Text = "Vida estimada: --",
-            AutoSize = true,
-            Margin = new Padding(8, 5, 3, 0)
+            Name = "LifePercent",
+            Text = "--%",
+            Dock = DockStyle.Fill,
+            ForeColor = Coral,
+            Font = new Font("Arial Narrow", 40F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
         };
-        var readNow = new Button { Text = "Atualizar leitura", AutoSize = true };
-        readNow.Tag = "water";
-        readingLine.Controls.Add(lifeMeter);
-        readingLine.Controls.Add(lifePercent);
-        readingLine.Controls.Add(readNow);
-        barFlow.Controls.Add(readingLine);
+        var lifeLoss = new Label { Text = "Queda --", Dock = DockStyle.Fill, ForeColor = Muted };
+        var lifeMeter = new BrandProgressBar { Dock = DockStyle.Top, Height = 14, Value = 0 };
+        lifePanel.Controls.Add(lifePercent, 0, 1);
+        lifePanel.Controls.Add(lifeLoss, 0, 2);
+        lifePanel.Controls.Add(lifeMeter, 0, 3);
+        barLayout.Controls.Add(lifePanel, 1, 1);
 
-        var thresholdLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        var thresholdLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(2, 6, 0, 0) };
         thresholdLine.Controls.Add(new Label
         {
-            Text = "Reagir quando a vida cair pelo menos:",
+            Text = "REAGIR AO CAIR",
             AutoSize = true,
-            Margin = new Padding(3, 7, 3, 0)
+            ForeColor = Muted,
+            Font = new Font("Arial Narrow", 9F, FontStyle.Bold),
+            Margin = new Padding(3, 7, 12, 0)
         });
         var threshold = Number(profile.DropLimitPercent, 1, 90, 1, 70);
         thresholdLine.Controls.Add(threshold);
         thresholdLine.Controls.Add(new Label { Text = "%", AutoSize = true, Margin = new Padding(0, 7, 3, 0) });
-        barFlow.Controls.Add(thresholdLine);
-        barGroup.Controls.Add(barFlow);
+        barLayout.Controls.Add(thresholdLine, 0, 2);
+
+        var readNow = new Button { Text = "↻  ATUALIZAR LEITURA", AutoSize = true, Anchor = AnchorStyles.Right };
+        readNow.Tag = "water";
+        barLayout.Controls.Add(readNow, 1, 2);
+        barGroup.Controls.Add(barLayout);
         left.Controls.Add(barGroup, 0, 0);
 
-        var teleportGroup = Group("2  TELEPORTE", 110);
-        var teleportLine = new FlowLayoutPanel { AutoSize = true, Padding = new Padding(8, 20, 8, 4) };
-        var selectTeleport = new Button { Text = "Marcar item de teleporte", AutoSize = true };
+        var teleportGroup = Group("2  TELEPORTE", 118);
+        var teleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10, 24, 8, 4) };
+        var selectTeleport = new Button { Text = "⌖  MARCAR ITEM", AutoSize = true };
         var teleportStatus = StepStatus();
         teleportLine.Controls.Add(selectTeleport);
         teleportLine.Controls.Add(teleportStatus);
@@ -264,9 +350,9 @@ sealed class MainForm : Form
 
         var advancedToggle = new CheckBox
         {
-            Text = "Mostrar opções avançadas",
+            Text = "⚙  OPÇÕES AVANÇADAS",
             AutoSize = true,
-            Margin = new Padding(8, 8, 3, 3)
+            Margin = new Padding(8, 12, 3, 3)
         };
         var advancedGroup = Group("Opções avançadas", 235);
         advancedGroup.Visible = false;
@@ -294,90 +380,119 @@ sealed class MainForm : Form
         advancedArea.Controls.Add(advancedToggle);
         advancedArea.Controls.Add(advancedGroup);
 
-        var spotsGroup = Group("3  ROTA DE SPOTS", 530);
-        var spotsFlow = VerticalPanel(false);
-        spotsFlow.Padding = new Padding(8, 14, 8, 4);
-        var useSpots = new CheckBox
+        var spotsGroup = Group("3  ROTA DE SPOTS", 420);
+        var spotsLayout = new TableLayoutPanel
         {
-            Text = "Após teleportar, escolher um spot",
-            Checked = profile.UseSpots,
-            AutoSize = true
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 7,
+            Padding = new Padding(10, 13, 10, 6)
         };
-        spotsFlow.Controls.Add(useSpots);
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        var useSpots = new BrandToggle
+        {
+            Text = "USAR SPOTS",
+            Checked = profile.UseSpots,
+            Dock = DockStyle.Right,
+            Width = 190
+        };
+        spotsLayout.Controls.Add(useSpots, 0, 0);
 
-        var spotWindowLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        var selectSpotWindow = new Button { Text = "Marcar janela de spots", AutoSize = true };
+        var markers = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
+        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        var spotWindowLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var selectSpotWindow = MarkerButton("JANELA DE SPOTS");
         var spotWindowStatus = StepStatus();
         spotWindowLine.Controls.Add(selectSpotWindow);
         spotWindowLine.Controls.Add(spotWindowStatus);
-        spotsFlow.Controls.Add(spotWindowLine);
 
-        var spotMatch = new Label { Text = "Semelhança atual: --", AutoSize = true };
-        spotsFlow.Controls.Add(spotMatch);
-
-        var spotMenuLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        var selectSpotMenu = new Button { Text = "Marcar botão Abrir spots", AutoSize = true };
+        var spotMenuLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var selectSpotMenu = MarkerButton("ABRIR MENU");
         var spotMenuStatus = StepStatus();
         spotMenuLine.Controls.Add(selectSpotMenu);
         spotMenuLine.Controls.Add(spotMenuStatus);
-        spotsFlow.Controls.Add(spotMenuLine);
 
-        var confirmTeleportLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        var selectConfirmTeleport = new Button { Text = "Marcar botão Teleportar", AutoSize = true };
+        var confirmTeleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        var selectConfirmTeleport = MarkerButton("BOTÃO TELEPORTAR");
         var confirmTeleportStatus = StepStatus();
         confirmTeleportLine.Controls.Add(selectConfirmTeleport);
         confirmTeleportLine.Controls.Add(confirmTeleportStatus);
-        spotsFlow.Controls.Add(confirmTeleportLine);
+        markers.Controls.Add(spotWindowLine, 0, 0);
+        markers.Controls.Add(spotMenuLine, 1, 0);
+        markers.Controls.Add(confirmTeleportLine, 2, 0);
+        spotsLayout.Controls.Add(markers, 0, 1);
 
-        var showMarks = new Button { Text = "Mostrar marcações por 8 s", AutoSize = true };
-        spotsFlow.Controls.Add(showMarks);
+        var markerTools = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var spotMatch = new Label { Text = "Semelhança atual: --", AutoSize = true, Margin = new Padding(3, 8, 14, 0) };
+        var showMarks = new Button { Text = "MOSTRAR MARCAÇÕES", AutoSize = true };
+        markerTools.Controls.Add(spotMatch);
+        markerTools.Controls.Add(showMarks);
+        spotsLayout.Controls.Add(markerTools, 0, 2);
 
-        spotsFlow.Controls.Add(new Label { Text = "Marque os spots que participarão da sequência:", AutoSize = true });
-        var spots = new CheckedListBox { Width = 455, Height = 115, CheckOnClick = true };
-        spotsFlow.Controls.Add(spots);
+        spotsLayout.Controls.Add(new Label
+        {
+            Text = "ORDEM     NOME DO SPOT                                            ATIVO",
+            Dock = DockStyle.Fill,
+            ForeColor = Muted,
+            Font = new Font("Arial Narrow", 8.5F, FontStyle.Bold)
+        }, 0, 3);
+        var spots = new CheckedListBox { Name = "SpotsList", Dock = DockStyle.Fill, CheckOnClick = true };
+        spotsLayout.Controls.Add(spots, 0, 4);
 
-        var spotButtons = new FlowLayoutPanel { AutoSize = true, Width = 455 };
-        var addSpot = SmallButton("Adicionar spot");
-        var updateSpot = SmallButton("Atualizar posição");
-        var renameSpot = SmallButton("Renomear");
+        var spotButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var addSpot = SmallButton("＋ ADICIONAR");
+        var updateSpot = SmallButton("↕ POSIÇÃO");
+        var renameSpot = SmallButton("✎ RENOMEAR");
         var moveUp = SmallButton("▲");
         var moveDown = SmallButton("▼");
-        var removeSpot = SmallButton("Remover");
+        var removeSpot = SmallButton("REMOVER");
         removeSpot.Tag = "danger";
         spotButtons.Controls.AddRange([addSpot, updateSpot, renameSpot, moveUp, moveDown, removeSpot]);
-        spotsFlow.Controls.Add(spotButtons);
+        spotsLayout.Controls.Add(spotButtons, 0, 5);
 
-        var cyclesLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        var cyclesLine = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(0, 5, 0, 0) };
         cyclesLine.Controls.Add(new Label
         {
-            Text = "Repetir a lista completa:",
+            Text = "REPETIR ROTA",
             AutoSize = true,
-            Margin = new Padding(3, 7, 3, 0)
+            ForeColor = Muted,
+            Font = new Font("Arial Narrow", 9F, FontStyle.Bold),
+            Margin = new Padding(3, 7, 12, 0)
         });
         var cycles = Number(profile.CycleCount, 1, 999, 1, 70);
         cyclesLine.Controls.Add(cycles);
-        cyclesLine.Controls.Add(new Label { Text = "vez(es)", AutoSize = true, Margin = new Padding(0, 7, 3, 0) });
-        spotsFlow.Controls.Add(cyclesLine);
-        spotsGroup.Controls.Add(spotsFlow);
+        cyclesLine.Controls.Add(new Label { Text = "vezes", AutoSize = true, Margin = new Padding(0, 7, 3, 0) });
+        spotsLayout.Controls.Add(cyclesLine, 0, 6);
+        spotsGroup.Controls.Add(spotsLayout);
         right.Controls.Add(spotsGroup, 0, 0);
 
-        var stateGroup = Group("ESTADO DA SESSÃO", 170);
+        var stateGroup = Group("ESTADO DA SESSÃO", 142);
+        stateGroup.Name = "SessionGroup";
         var stateFlow = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
+            ColumnCount = 5,
             RowCount = 2,
-            Padding = new Padding(8, 14, 8, 4)
+            Padding = new Padding(10, 14, 10, 5)
         };
+        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16));
+        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22));
+        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 26));
         stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
-        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
-        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
-        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
+        stateFlow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
+        stateFlow.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         stateFlow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        stateFlow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        var state = new Label { Text = "Parada", AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
-        var progress = new Label { AutoSize = true, MaximumSize = new Size(360, 0) };
-        var detected = new Label { Text = "Barra ainda não calibrada.", AutoSize = true, MaximumSize = new Size(360, 0) };
+        var state = new Label { Text = "PARADA", AutoSize = true, ForeColor = Acid, Font = new Font("Arial Narrow", 13F, FontStyle.Bold) };
+        var progress = new Label { AutoSize = true, ForeColor = Water, MaximumSize = new Size(360, 0) };
+        var detected = new Label { Text = "Barra ainda não calibrada.", AutoSize = true, ForeColor = Acid, MaximumSize = new Size(360, 0) };
         var captureStatus = new Label { Text = "Captura: parada", AutoSize = true };
         var stateCell = MetricCell("STATUS", state, captureStatus);
         var lifeCell = MetricCell("LEITURA", detected);
@@ -398,26 +513,42 @@ sealed class MainForm : Form
         sessionLine.Controls.Add(new Label { Text = "min", AutoSize = true, Margin = new Padding(0, 7, 3, 0) });
         var sessionTime = new Label
         {
-            Text = "Tempo ativo: 00:00:00 — Restante: 01:00:00",
+            Text = "00:00:00",
             AutoSize = true,
-            Font = new Font(Font, FontStyle.Bold)
+            ForeColor = Water,
+            Font = new Font("Arial Narrow", 11F, FontStyle.Bold)
         };
-        var timeCell = MetricCell("TEMPO DA SESSÃO", sessionTime, sessionLine);
+        var remainingTime = new Label
+        {
+            Text = "01:00:00",
+            AutoSize = true,
+            ForeColor = Water,
+            Font = new Font("Arial Narrow", 11F, FontStyle.Bold)
+        };
+        var timeCell = MetricCell("TEMPO ATIVO", sessionTime);
+        var remainingCell = MetricCell("RESTANTE", remainingTime);
         stateFlow.Controls.Add(stateCell, 0, 0);
         stateFlow.Controls.Add(lifeCell, 1, 0);
         stateFlow.Controls.Add(progressCell, 2, 0);
         stateFlow.Controls.Add(timeCell, 3, 0);
+        stateFlow.Controls.Add(remainingCell, 4, 0);
 
-        var stateButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-        var rearm = SmallButton("Recalibrar barra");
-        var reset = SmallButton("Reiniciar sessão");
-        var test = SmallButton("Testar próxima reação");
+        var stateButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var rearm = SmallButton("⌖ RECALIBRAR");
+        var reset = SmallButton("↻ REINICIAR SESSÃO");
+        var test = SmallButton("▷ TESTAR REAÇÃO");
         var backgroundTest = SmallButton("Testar clique em 2º plano");
         var backgroundCaptureTest = SmallButton("Testar captura em 2º plano");
         test.Tag = "water";
-        stateButtons.Controls.AddRange([rearm, reset, test, backgroundTest, backgroundCaptureTest]);
+        stateButtons.Controls.AddRange([rearm, reset, test]);
+        advanced.Controls.Add(new Label { Text = "TESTES DE COMPATIBILIDADE", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 8, 3, 2) });
+        var compatibilityTests = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        compatibilityTests.Controls.AddRange([backgroundTest, backgroundCaptureTest]);
+        advanced.Controls.Add(compatibilityTests);
+        advanced.Controls.Add(new Label { Text = "LIMITE DA SESSÃO", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 8, 3, 2) });
+        advanced.Controls.Add(sessionLine);
         stateFlow.Controls.Add(stateButtons, 0, 1);
-        stateFlow.SetColumnSpan(stateButtons, 4);
+        stateFlow.SetColumnSpan(stateButtons, 5);
         stateGroup.Controls.Add(stateFlow);
         root.Controls.Add(stateGroup, 0, 2);
         root.SetColumnSpan(stateGroup, 2);
@@ -427,7 +558,8 @@ sealed class MainForm : Form
         root.Controls.Add(advancedArea, 0, 3);
         root.SetColumnSpan(advancedArea, 2);
         root.SizeChanged += (_, _) => advancedGroup.Width = Math.Max(500, root.ClientSize.Width - 42);
-        page.Controls.Add(root);
+        viewport.Controls.Add(root);
+        page.Controls.Add(viewport);
 
         var ui = new ProfileUi(
             profile,
@@ -446,7 +578,9 @@ sealed class MainForm : Form
             captureStatus,
             sessionTime,
             lifeMeter,
-            lifePercent);
+            lifePercent,
+            lifeLoss,
+            remainingTime);
         _profiles.Add(ui);
         SetSpotControlsEnabled();
         RefreshProfileUi(ui);
@@ -556,7 +690,12 @@ sealed class MainForm : Form
         spotSimilarity.ValueChanged += (_, _) => { profile.SpotWindowMinimumSimilarity = spotSimilarity.Value; TrySave(); };
         rearmDelay.ValueChanged += (_, _) => { profile.RearmDelayMs = (int)rearmDelay.Value; TrySave(); };
         stableTime.ValueChanged += (_, _) => { profile.StableTimeMs = (int)stableTime.Value; TrySave(); };
-        advancedToggle.CheckedChanged += (_, _) => advancedGroup.Visible = advancedToggle.Checked;
+        advancedToggle.CheckedChanged += (_, _) =>
+        {
+            advancedGroup.Visible = advancedToggle.Checked;
+            root.RowStyles[3].Height = advancedToggle.Checked ? 250 : 66;
+            root.Height = advancedToggle.Checked ? 972 : 788;
+        };
 
         addSpot.Click += (_, _) => AddSpot(ui);
         updateSpot.Click += (_, _) => UpdateSpot(ui);
@@ -614,10 +753,11 @@ sealed class MainForm : Form
         Text = text,
         Dock = DockStyle.Fill,
         Height = height,
-        Margin = new Padding(5),
-        Padding = new Padding(8),
+        Margin = new Padding(6),
+        Padding = new Padding(9),
         BackColor = InkSoft,
-        ForeColor = Gold
+        ForeColor = Gold,
+        Font = new Font("Arial Narrow", 10.5F, FontStyle.Bold)
     };
 
     static Label StepStatus() => new()
@@ -625,10 +765,20 @@ sealed class MainForm : Form
         Text = "Não configurado",
         AutoSize = true,
         ForeColor = Coral,
+        Font = new Font("Bahnschrift Condensed", 8.5F),
         Margin = new Padding(10, 7, 3, 0)
     };
 
-    static Button SmallButton(string text) => new() { Text = text, AutoSize = true };
+    static Button SmallButton(string text) => new() { Text = text, AutoSize = true, MinimumSize = new Size(0, 34) };
+
+    static Button MarkerButton(string text) => new()
+    {
+        Text = text,
+        AutoSize = false,
+        Dock = DockStyle.Top,
+        Height = 32,
+        Font = new Font("Arial Narrow", 8F, FontStyle.Bold)
+    };
 
     static NumericUpDown Number(decimal value, decimal min, decimal max, decimal increment, int width) => new()
     {
@@ -673,26 +823,6 @@ sealed class MainForm : Form
         return stream is null ? null : new Bitmap(stream);
     }
 
-    static void DrawBrandTab(object? sender, DrawItemEventArgs eventArgs)
-    {
-        if (sender is not TabControl tabs)
-            return;
-        var selected = eventArgs.Index == tabs.SelectedIndex;
-        using var background = new SolidBrush(selected ? InkSoft : Ink);
-        using var foreground = new SolidBrush(selected ? Gold : Muted);
-        using var font = new Font("Arial Narrow", 11F, FontStyle.Bold);
-        eventArgs.Graphics.FillRectangle(background, eventArgs.Bounds);
-        if (selected)
-        {
-            using var border = new Pen(Gold, 2);
-            eventArgs.Graphics.DrawLine(border, eventArgs.Bounds.Left, eventArgs.Bounds.Bottom - 1,
-                eventArgs.Bounds.Right, eventArgs.Bounds.Bottom - 1);
-        }
-        TextRenderer.DrawText(eventArgs.Graphics, tabs.TabPages[eventArgs.Index].Text.ToUpperInvariant(),
-            font, eventArgs.Bounds, foreground.Color,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-    }
-
     static void ApplyBrandTheme(Control root)
     {
         foreach (Control control in root.Controls)
@@ -709,6 +839,10 @@ sealed class MainForm : Form
                     break;
                 case Button button:
                     StyleButton(button);
+                    break;
+                case BrandToggle toggle:
+                    toggle.BackColor = toggle.Parent?.BackColor ?? InkSoft;
+                    toggle.ForeColor = Bone;
                     break;
                 case CheckBox checkBox:
                     checkBox.BackColor = checkBox.Parent?.BackColor ?? Ink;
@@ -747,6 +881,9 @@ sealed class MainForm : Form
         button.BackColor = role switch
         {
             "primary" => Acid,
+            "badge" => Color.FromArgb(31, 45, 10),
+            "tabSelected" => InkSoft,
+            "tab" => Ink,
             "danger" => InkSoft,
             _ => InkSoft
         };
@@ -755,9 +892,90 @@ sealed class MainForm : Form
             "primary" => Ink,
             "danger" => Coral,
             "water" => Water,
+            "badge" => Acid,
+            "tabSelected" => Gold,
+            "tab" => Muted,
             _ => Gold
         };
         button.FlatAppearance.BorderColor = button.ForeColor;
+        if (role is "badge")
+            button.Padding = new Padding(6, 0, 6, 0);
+        if (role is "tab" or "tabSelected")
+            button.FlatAppearance.BorderSize = role == "tabSelected" ? 1 : 0;
+    }
+
+    sealed class BrandToggle : CheckBox
+    {
+        public BrandToggle()
+        {
+            AutoSize = false;
+            Height = 42;
+            Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnCheckedChanged(EventArgs eventArgs)
+        {
+            base.OnCheckedChanged(eventArgs);
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs eventArgs)
+        {
+            eventArgs.Graphics.Clear(Parent?.BackColor ?? InkSoft);
+            var switchWidth = 48;
+            var switchHeight = 24;
+            var switchLeft = Math.Max(4, Width - switchWidth - 12);
+            var switchTop = (Height - switchHeight) / 2;
+            var track = new Rectangle(switchLeft, switchTop, switchWidth, switchHeight);
+            using var trackBrush = new SolidBrush(Checked && Enabled ? Acid : Color.FromArgb(42, 48, 46));
+            eventArgs.Graphics.FillEllipse(trackBrush, track.Left, track.Top, track.Height, track.Height);
+            eventArgs.Graphics.FillEllipse(trackBrush, track.Right - track.Height, track.Top, track.Height, track.Height);
+            eventArgs.Graphics.FillRectangle(trackBrush,
+                track.Left + track.Height / 2, track.Top, track.Width - track.Height, track.Height);
+            var knobSize = 18;
+            var knobLeft = Checked ? track.Right - knobSize - 3 : track.Left + 3;
+            using var knob = new SolidBrush(Enabled ? Bone : Muted);
+            eventArgs.Graphics.FillEllipse(knob, knobLeft, track.Top + 3, knobSize, knobSize);
+            TextRenderer.DrawText(eventArgs.Graphics, Text, Font,
+                new Rectangle(8, 0, Math.Max(0, switchLeft - 14), Height),
+                Enabled ? ForeColor : Muted,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+    }
+
+    sealed class BrandProgressBar : Control
+    {
+        int _value;
+
+        public int Value
+        {
+            get => _value;
+            set
+            {
+                _value = Math.Clamp(value, 0, 100);
+                Invalidate();
+            }
+        }
+
+        public BrandProgressBar()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs eventArgs)
+        {
+            var bounds = new Rectangle(0, 0, Math.Max(0, Width - 1), Math.Max(0, Height - 1));
+            using var background = new SolidBrush(Color.FromArgb(52, 57, 55));
+            using var fill = new SolidBrush(Coral);
+            using var border = new Pen(Color.FromArgb(82, 87, 84));
+            eventArgs.Graphics.FillRectangle(background, bounds);
+            if (_value > 0)
+                eventArgs.Graphics.FillRectangle(fill, new Rectangle(0, 0, bounds.Width * _value / 100, bounds.Height));
+            eventArgs.Graphics.DrawRectangle(border, bounds);
+        }
     }
 
     void RefreshWindows()
@@ -1199,7 +1417,7 @@ sealed class MainForm : Form
         }
 
         _running = true;
-        _startStop.Text = "Parar proteção";
+        _startStop.Text = "■  PARAR PROTEÇÃO";
         _startStop.BackColor = Coral;
         _timer.Start();
         SetStatus($"Proteção ativa em {started} janela(s).");
@@ -1349,7 +1567,7 @@ sealed class MainForm : Form
             ui.State = ProfileState.Stopped;
             SetProfileStatus(ui, "Parada", "Progresso preservado.");
         }
-        _startStop.Text = "Iniciar proteção";
+        _startStop.Text = "⛨  INICIAR PROTEÇÃO";
         _startStop.BackColor = Acid;
         SetStatus("Proteção parada.");
     }
@@ -1373,7 +1591,7 @@ sealed class MainForm : Form
             else if (_running)
             {
                 _running = false;
-                _startStop.Text = "Iniciar proteção";
+                _startStop.Text = "⛨  INICIAR PROTEÇÃO";
                 _startStop.BackColor = Acid;
                 SetStatus("Todas as sequências ativas foram concluídas ou pausadas.");
             }
@@ -2049,7 +2267,8 @@ sealed class MainForm : Form
         var remaining = SessionLimit(ui) - active;
         if (remaining < TimeSpan.Zero)
             remaining = TimeSpan.Zero;
-        ui.TimeLabel.Text = $"Tempo ativo: {FormatTime(active)} — Restante: {FormatTime(remaining)}";
+        ui.TimeLabel.Text = FormatTime(active);
+        ui.RemainingTimeLabel.Text = FormatTime(remaining);
     }
 
     void ExpireProfile(ProfileUi ui)
@@ -2095,7 +2314,8 @@ sealed class MainForm : Form
     {
         var safeLife = Math.Clamp(life, 0, 100);
         ui.LifeMeter.Value = (int)Math.Round(safeLife);
-        ui.LifePercent.Text = $"Vida: {safeLife:F0}%  (queda {Math.Clamp(loss, 0, 100):F1}%)";
+        ui.LifePercent.Text = $"{safeLife:F0}%";
+        ui.LifeLoss.Text = $"Queda {Math.Clamp(loss, 0, 100):F1}%";
     }
 
     static string? AskName(string current)
@@ -2144,10 +2364,12 @@ sealed class MainForm : Form
         _checkingUpdate = true;
         try
         {
+            _updateStatus.Text = "VERIFICANDO";
             SetStatus("Verificando atualizações...");
             var update = await Updater.CheckAsync();
             if (update is null)
             {
+                _updateStatus.Text = "ATUALIZADO";
                 SetStatus($"Ronaldinho v{Updater.CurrentVersion.ToString(3)} está atualizado.");
                 if (reportLatest)
                     MessageBox.Show(this, "Você já está usando a versão mais recente.", "Atualização",
@@ -2158,6 +2380,7 @@ sealed class MainForm : Form
             var answer = MessageBox.Show(this,
                 $"A versão {update.Tag} está disponível. Deseja baixar, instalar e reiniciar agora?",
                 "Atualização disponível", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            _updateStatus.Text = $"{update.Tag} DISPONÍVEL";
             if (answer != DialogResult.Yes)
             {
                 SetStatus($"Atualização {update.Tag} disponível.");
@@ -2170,6 +2393,7 @@ sealed class MainForm : Form
         }
         catch (Exception error)
         {
+            _updateStatus.Text = "OFFLINE";
             SetStatus($"Não foi possível verificar atualizações: {error.Message}", true);
             if (reportLatest)
                 MessageBox.Show(this, error.Message, "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2310,8 +2534,10 @@ sealed class MainForm : Form
         public Label Detected { get; }
         public Label CaptureStatus { get; }
         public Label TimeLabel { get; }
-        public ProgressBar LifeMeter { get; }
+        public Label RemainingTimeLabel { get; }
+        public BrandProgressBar LifeMeter { get; }
         public Label LifePercent { get; }
+        public Label LifeLoss { get; }
         public System.Diagnostics.Stopwatch SessionWatch { get; } = new();
         public ProfileState State { get; set; } = ProfileState.Stopped;
         public int NextSpotIndex { get; set; }
@@ -2342,8 +2568,10 @@ sealed class MainForm : Form
             Label detected,
             Label captureStatus,
             Label timeLabel,
-            ProgressBar lifeMeter,
-            Label lifePercent)
+            BrandProgressBar lifeMeter,
+            Label lifePercent,
+            Label lifeLoss,
+            Label remainingTimeLabel)
         {
             Profile = profile;
             Window = window;
@@ -2362,6 +2590,8 @@ sealed class MainForm : Form
             TimeLabel = timeLabel;
             LifeMeter = lifeMeter;
             LifePercent = lifePercent;
+            LifeLoss = lifeLoss;
+            RemainingTimeLabel = remainingTimeLabel;
 
             if (profile.SpotWindowReferencePng.Length > 0)
             {
