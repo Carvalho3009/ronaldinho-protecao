@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.0.0 — Dibre a concorrência**
+**Versão 2.0.1 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -18,7 +18,7 @@ Programa portátil para Windows que monitora até duas janelas de forma independ
 ## Primeira execução
 
 1. Extraia todo o conteúdo do ZIP para uma pasta comum.
-2. Abra `ControlarTela.exe`.
+2. Abra `Ronaldinho.exe`.
 3. Confirme a solicitação de administrador do Windows.
 4. Se o SmartScreen avisar que o arquivo não é reconhecido, confira se o arquivo veio de uma fonte confiável. O programa não possui assinatura digital.
 5. Abra a janela do jogo ou programa que será monitorado.
@@ -117,7 +117,7 @@ Se a barra desaparecer ou a captura parar, somente aquela janela entra em **Proc
 
 ### O clique não funciona
 
-- Feche o programa e abra `ControlarTela.exe` como administrador.
+- Feche o programa e abra `Ronaldinho.exe` como administrador.
 - Confirme que a janela escolhida ainda é a correta.
 - Em **Configurações**, use os botões de teste antes de iniciar a proteção.
 

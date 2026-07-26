@@ -9,6 +9,7 @@ static class Updater
 {
     const string LatestReleaseUrl = "https://api.github.com/repos/Carvalho3009/ronaldinho-protecao/releases/latest";
     const string AssetName = "ControlarTela.exe";
+    const string PortableName = "Ronaldinho.exe";
 
     public sealed record UpdateInfo(Version Version, string Tag, string DownloadUrl);
 
@@ -25,7 +26,7 @@ static class Updater
     {
         var currentExe = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
-        if (!Path.GetFileName(currentExe).Equals(AssetName, StringComparison.OrdinalIgnoreCase))
+        if (!IsPortableExecutable(Path.GetFileName(currentExe)))
             throw new InvalidOperationException("A atualização automática funciona somente no executável portátil.");
 
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"Ronaldinho-{Guid.NewGuid():N}");
@@ -103,6 +104,10 @@ static class Updater
 
     static string Quote(string value) => value.Replace("'", "''");
 
+    static bool IsPortableExecutable(string fileName) =>
+        fileName.Equals(AssetName, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals(PortableName, StringComparison.OrdinalIgnoreCase);
+
     public static void RunSelfTest()
     {
         const string release = """
@@ -113,5 +118,8 @@ static class Updater
             throw new InvalidOperationException("Falha no autoteste do atualizador.");
         if (ParseRelease(release, new Version(1, 2, 0, 0)) is not null)
             throw new InvalidOperationException("O atualizador ofereceu a versão já instalada.");
+        if (!IsPortableExecutable("ControlarTela.exe") || !IsPortableExecutable("Ronaldinho.exe")
+            || IsPortableExecutable("Outro.exe"))
+            throw new InvalidOperationException("Falha na compatibilidade dos nomes do executável portátil.");
     }
 }
