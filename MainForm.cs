@@ -18,6 +18,17 @@ sealed class MainForm : Form
     readonly Button _startStop = new();
     readonly Button _updateStatus = new();
     readonly Label _status = new();
+    readonly RoundedPanel _setupGuide = new();
+    readonly Label _setupProgress = new();
+    readonly Label _setupTitle = new();
+    readonly Label _setupInstruction = new();
+    readonly Button _setupBack = new();
+    readonly Button _setupSkip = new();
+    readonly Button _setupNext = new();
+    Action<int>? _selectProfilePage;
+    Action<string>? _openSection;
+    List<SetupStep> _setupSteps = [];
+    int _setupStepIndex;
     bool _running;
     bool _busy;
     bool _loading;
@@ -39,7 +50,12 @@ sealed class MainForm : Form
         ApplyBrandTheme(this);
         RefreshWindows();
         if (checkForUpdates)
-            Shown += async (_, _) => await CheckForUpdatesAsync();
+            Shown += async (_, _) =>
+            {
+                if (!_config.InitialSetupCompleted)
+                    BeginSetupGuide();
+                await CheckForUpdatesAsync();
+            };
         if (warning is not null)
             SetStatus(warning, true);
 
@@ -67,7 +83,7 @@ sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = Padding.Empty,
             BackColor = sidebar.BackColor
         };
@@ -107,12 +123,13 @@ sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = Padding.Empty,
             BackColor = Ink
         };
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 184));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
 
         var header = new TableLayoutPanel
@@ -191,6 +208,7 @@ sealed class MainForm : Form
         var windowHeaders = new List<Control>();
         var tabButtons = new List<Button>();
         var navButtons = new List<Button>();
+        var navTargets = new Dictionary<string, Button>(StringComparer.Ordinal);
         var selectedPage = 0;
         foreach (var profile in _config.Windows)
         {
@@ -227,9 +245,11 @@ sealed class MainForm : Form
         _status.ForeColor = Muted;
         _status.Text = "Configure ao menos uma janela.";
 
+        BuildSetupGuide();
         content.Controls.Add(header, 0, 0);
         content.Controls.Add(pageHost, 0, 1);
-        content.Controls.Add(_status, 0, 2);
+        content.Controls.Add(_setupGuide, 0, 2);
+        content.Controls.Add(_status, 0, 3);
         var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -244,7 +264,15 @@ sealed class MainForm : Form
         AddNav("⌖", "ROTA DE SPOTS", "SpotsModule");
         AddNav("⌁", "SESSÃO", "SessionGroup");
         AddNav("⚙", "CONFIGURAÇÕES", "AdvancedGroup");
+        AddNav("✦", "CONFIGURAÇÃO GUIADA", "SetupGuide");
+        navTargets["Overview"] = navButtons[0];
         SelectNavigation(navButtons[0]);
+        _selectProfilePage = SelectPage;
+        _openSection = target =>
+        {
+            if (navTargets.TryGetValue(target, out var button))
+                button.PerformClick();
+        };
         SizeChanged += (_, _) => ApplyResponsiveShell();
         ApplyResponsiveShell();
 
@@ -258,7 +286,8 @@ sealed class MainForm : Form
             foreach (var button in navButtons)
             {
                 button.Width = compact ? 208 : 268;
-                button.Height = compact ? 58 : 68;
+                button.Height = compact ? 48 : 54;
+                button.Margin = new Padding(0, 0, 0, compact ? 5 : 6);
             }
         }
 
@@ -296,6 +325,11 @@ sealed class MainForm : Form
             button.Click += (_, _) =>
             {
                 SelectNavigation(button);
+                if (target == "SetupGuide")
+                {
+                    BeginSetupGuide();
+                    return;
+                }
                 var activePage = pages[selectedPage];
                 var activeAdvancedToggle = activePage.Controls.Find("AdvancedToggle", true).OfType<CheckBox>().First();
                 ActiveViewport().AutoScrollPosition = Point.Empty;
@@ -341,7 +375,59 @@ sealed class MainForm : Form
                 FocusModule(activePage, target);
             };
             navButtons.Add(button);
+            if (target is not null)
+                navTargets[target] = button;
             nav.Controls.Add(button);
+        }
+
+        void BuildSetupGuide()
+        {
+            _setupGuide.Name = "SetupGuide";
+            _setupGuide.Dock = DockStyle.Fill;
+            _setupGuide.Margin = new Padding(18, 2, 18, 2);
+            _setupGuide.Padding = new Padding(14, 4, 14, 4);
+            _setupGuide.BackColor = Color.FromArgb(16, 21, 19);
+            _setupGuide.BorderColor = Gold;
+            _setupGuide.Visible = false;
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            _setupProgress.AutoSize = true;
+            _setupProgress.ForeColor = Gold;
+            _setupProgress.Font = new Font("Arial Narrow", 9F, FontStyle.Bold);
+            _setupTitle.AutoSize = true;
+            _setupTitle.ForeColor = Bone;
+            _setupTitle.Font = new Font("Arial Narrow", 12.5F, FontStyle.Bold);
+            _setupInstruction.AutoSize = true;
+            _setupInstruction.ForeColor = Muted;
+            _setupInstruction.MaximumSize = new Size(760, 0);
+            var copy = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+            copy.Controls.Add(_setupTitle);
+            copy.Controls.Add(_setupInstruction);
+            var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right };
+            _setupBack.Text = "← VOLTAR";
+            _setupSkip.Text = "PULAR";
+            _setupNext.Text = "AVANÇAR →";
+            var close = SmallButton("FECHAR");
+            _setupNext.Tag = "primary";
+            _setupSkip.Tag = "secondary";
+            foreach (var button in new[] { _setupBack, _setupSkip, close, _setupNext })
+            {
+                button.AutoSize = true;
+                button.MinimumSize = new Size(96, 34);
+                buttons.Controls.Add(button);
+            }
+            _setupBack.Click += (_, _) => MoveSetup(-1);
+            _setupSkip.Click += (_, _) => MoveSetup(1, true);
+            _setupNext.Click += (_, _) => MoveSetup(1);
+            close.Click += (_, _) => CloseSetupGuide();
+            layout.Controls.Add(_setupProgress, 0, 0);
+            layout.Controls.Add(copy, 0, 1);
+            layout.Controls.Add(buttons, 1, 1);
+            _setupGuide.Controls.Add(layout);
         }
 
         Panel ActiveViewport() => pages[selectedPage].Controls.Find("Viewport", true).OfType<Panel>().First();
@@ -446,6 +532,176 @@ sealed class MainForm : Form
         }
     }
 
+    void BeginSetupGuide()
+    {
+        if (_running)
+        {
+            MessageBox.Show(this, "Pare a proteção antes de abrir a Configuração guiada.", Text,
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        _setupSteps = BuildSetupSteps();
+        _setupStepIndex = Math.Max(0, _setupSteps.FindIndex(step => step.Id == _config.SetupStepId));
+        if (_setupGuide.Parent is TableLayoutPanel content)
+            content.RowStyles[2].Height = 140;
+        _setupGuide.Visible = true;
+        ApplySetupStep();
+    }
+
+    List<SetupStep> BuildSetupSteps()
+    {
+        var steps = new List<SetupStep>();
+        for (var index = 0; index < _profiles.Count; index++)
+        {
+            var profileIndex = index;
+            var prefix = $"p{index}-";
+            steps.Add(new SetupStep(
+                prefix + "window",
+                profileIndex,
+                "1. Escolha a janela",
+                "Selecione a janela do jogo e defina se esta proteção ficará ativa e em segundo plano.",
+                "WindowHeader",
+                false,
+                _ => true,
+                ui => !ui.Profile.ProtectionEnabled || ui.Window.SelectedItem is WindowChoice,
+                "Escolha uma janela ou desative a proteção deste perfil."));
+            steps.Add(new SetupStep(
+                prefix + "life",
+                profileIndex,
+                "2. Calibre a vida",
+                "Com a vida em 100%, marque a barra e escolha a porcentagem de vida restante que dispara a reação.",
+                "LifeModule",
+                false,
+                ui => ui.Profile.ProtectionEnabled,
+                ui => ui.Profile.HealthBar.IsConfigured && ui.Profile.FullHealthRedWidth > 0,
+                "Marque a barra com a vida cheia."));
+            steps.Add(new SetupStep(
+                prefix + "teleport",
+                profileIndex,
+                "3. Configure o teleporte",
+                "Escolha Safe ou Random. Na rotação, o Safe também é obrigatório para o encerramento final.",
+                "TeleportModule",
+                false,
+                ui => ui.Profile.ProtectionEnabled,
+                ui => SelectedTeleport(ui.Profile).Configured
+                      && (!ui.Profile.UsesSpotRotation || ui.Profile.TeleportPoint.Configured),
+                "Marque o teleporte escolhido e, para rotação, também marque o Safe."));
+            steps.Add(new SetupStep(
+                prefix + "route",
+                profileIndex,
+                "4. Defina o fluxo após teleportar",
+                "Escolha Rotação de spots ou Parar após teleporte. Para rotação, conclua as cinco marcações e cadastre ao menos um spot.",
+                "SpotsModule",
+                false,
+                ui => ui.Profile.ProtectionEnabled,
+                ui => !ui.Profile.UsesSpotRotation
+                      || (ui.Profile.SpotWindowRegion.IsConfigured
+                          && ui.SpotWindowReference is not null
+                          && ui.Profile.SpotOpenIconRegion.IsConfigured
+                          && ui.SpotOpenIconReference is not null
+                          && ui.Profile.NpcIconRegion.IsConfigured
+                          && ui.NpcIconReference is not null
+                          && ui.Profile.ConfirmTeleportPoint.Configured
+                          && ui.Profile.AutoPoint.Configured
+                          && ui.Profile.Spots.Any(spot => spot.Enabled)),
+                "Conclua as marcações do menu, Abrir Spots, NPC, Teleportar e Auto."));
+            steps.Add(new SetupStep(
+                prefix + "session",
+                profileIndex,
+                "5. Revise a sessão",
+                "Defina a duração máxima e use Testar quando quiser validar o fluxo completo com cliques reais.",
+                "SessionGroup",
+                false,
+                ui => ui.Profile.ProtectionEnabled,
+                ui => ui.Profile.SessionLimitMinutes >= 1,
+                "Defina ao menos um minuto de sessão."));
+            steps.Add(new SetupStep(
+                prefix + "advanced",
+                profileIndex,
+                "6. Revise tempos e porcentagens",
+                "Todos os tempos, tentativas e percentuais têm valores seguros iniciais. Ajuste somente se o jogo exigir.",
+                "AdvancedGroup",
+                true,
+                ui => ui.Profile.ProtectionEnabled,
+                _ => true,
+                ""));
+            steps.Add(new SetupStep(
+                prefix + "review",
+                profileIndex,
+                "7. Revise a configuração",
+                "Confira o resumo. Avançar conclui esta janela e segue para a próxima.",
+                "Overview",
+                false,
+                ui => ui.Profile.ProtectionEnabled,
+                ui => ui.Profile.IsConfigured,
+                "Ainda há itens obrigatórios não configurados."));
+        }
+        return steps;
+    }
+
+    void ApplySetupStep()
+    {
+        if (_setupSteps.Count == 0)
+            return;
+        var step = _setupSteps[_setupStepIndex];
+        _selectProfilePage?.Invoke(step.ProfileIndex);
+        _openSection?.Invoke(step.Target);
+        _setupProgress.Text = $"CONFIGURAÇÃO GUIADA  •  ETAPA {_setupStepIndex + 1} DE {_setupSteps.Count}  •  JANELA {step.ProfileIndex + 1}";
+        _setupTitle.Text = step.Title;
+        _setupInstruction.Text = step.Instruction;
+        _setupBack.Enabled = _setupStepIndex > 0;
+        _setupSkip.Visible = step.Optional;
+        _setupNext.Text = _setupStepIndex == _setupSteps.Count - 1 ? "CONCLUIR ✓" : "AVANÇAR →";
+        _config.SetupProfileIndex = step.ProfileIndex;
+        _config.SetupStepId = step.Id;
+        TrySave();
+    }
+
+    void MoveSetup(int direction, bool skip = false)
+    {
+        if (_setupSteps.Count == 0)
+            return;
+        var current = _setupSteps[_setupStepIndex];
+        var ui = _profiles[current.ProfileIndex];
+        if (direction > 0 && !skip && current.Relevant(ui) && !current.Complete(ui))
+        {
+            MessageBox.Show(this, current.Error, "Configuração guiada",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var next = _setupStepIndex + direction;
+        while (next >= 0 && next < _setupSteps.Count)
+        {
+            var candidate = _setupSteps[next];
+            if (candidate.Relevant(_profiles[candidate.ProfileIndex]))
+                break;
+            next += direction;
+        }
+        if (next >= _setupSteps.Count)
+        {
+            _config.InitialSetupCompleted = true;
+            _config.SetupStepId = "complete";
+            TrySave();
+            CloseSetupGuide();
+            _openSection?.Invoke("Overview");
+            SetStatus("Configuração guiada concluída. Revise o resumo antes de iniciar.");
+            return;
+        }
+        if (next < 0)
+            next = 0;
+        _setupStepIndex = next;
+        ApplySetupStep();
+    }
+
+    void CloseSetupGuide()
+    {
+        _setupGuide.Visible = false;
+        if (_setupGuide.Parent is TableLayoutPanel content)
+            content.RowStyles[2].Height = 0;
+        TrySave();
+    }
+
     Control BuildOverviewCard(ProfileUi ui)
     {
         var card = Group(ui.Profile.Name.ToUpperInvariant());
@@ -491,7 +747,8 @@ sealed class MainForm : Form
         if (!_overviews.TryGetValue(ui.Profile, out var overview))
             return;
         overview.Target.Text = ui.Window.SelectedItem is WindowChoice choice ? choice.Title : "Janela não selecionada";
-        overview.Protection.Text = $"● {(ui.Profile.ProtectionEnabled ? "PROTEÇÃO ATIVA" : "PROTEÇÃO DESATIVADA")} • {(UsesRandomTeleport(ui.Profile) ? "RANDOM" : "SAFE")}";
+        overview.Protection.Text =
+            $"● {(ui.Profile.ProtectionEnabled ? "PROTEÇÃO ATIVA" : "PROTEÇÃO DESATIVADA")} • {(UsesRandomTeleport(ui.Profile) ? "RANDOM" : "SAFE")} • {(ui.Profile.UsesSpotRotation ? "ROTA" : "PARAR")}";
         overview.Protection.ForeColor = ui.Profile.ProtectionEnabled ? Acid : Coral;
         overview.Life.Text = ui.LifePercent.Text;
         overview.Loss.Text = ui.LifeLoss.Text;
@@ -656,13 +913,13 @@ sealed class MainForm : Form
         };
         thresholdLine.Controls.Add(new Label
         {
-            Text = "REAGIR AO CAIR",
+            Text = "REAGIR COM VIDA ABAIXO DE",
             AutoSize = true,
             ForeColor = Muted,
             Font = new Font("Arial Narrow", 9F, FontStyle.Bold),
             Margin = new Padding(3, 7, 6, 0)
         });
-        var threshold = Number(profile.DropLimitPercent, 1, 90, 1, 70);
+        var threshold = Number(profile.LifeThresholdPercent, 1, 100, 1, 70);
         thresholdLine.Controls.Add(threshold);
         thresholdLine.Controls.Add(new Label { Text = "%", AutoSize = true, Margin = new Padding(0, 7, 3, 0) });
         barLayout.Controls.Add(thresholdLine, 0, 2);
@@ -806,14 +1063,28 @@ sealed class MainForm : Form
         advancedRoute.Padding = new Padding(18, 4, 8, 4);
         var delay = Number(profile.TeleportToSpotDelayMs, 100, 10_000, 100, 90);
         var teleportRetries = Number(profile.TeleportRetryCount, 1, 20, 1, 90);
+        var blackTimeout = Number(profile.BlackScreenTimeoutMs / 1000, 1, 60, 1, 90);
+        var loadingTimeout = Number(profile.LoadingTimeoutMs / 1000, 1, 120, 1, 90);
+        var npcWait = Number(profile.NpcWaitMs / 1000m, 0.1m, 60, 0.1m, 90);
+        var menuWait = Number(profile.SpotMenuRetryWaitMs / 1000m, 0.1m, 60, 0.1m, 90);
+        var postSpotWait = Number(profile.PostSpotTeleportWaitMs / 1000, 1, 120, 1, 90);
         var rearmDelay = Number(profile.RearmDelayMs, 1000, 60_000, 500, 90);
         var stableTime = Number(profile.StableTimeMs, 500, 10_000, 500, 90);
         var spotSimilarity = Number(profile.SpotWindowMinimumSimilarity, 50, 100, 1, 90);
-        advanced.Controls.Add(OptionLine("Intervalo entre cliques (ms):", delay));
-        advanced.Controls.Add(OptionLine("Tentativas no botão Teleportar:", teleportRetries));
-        advanced.Controls.Add(OptionLine("Semelhança mínima da janela de spots (%):", spotSimilarity));
-        advanced.Controls.Add(OptionLine("Espera mínima após reação (ms):", rearmDelay));
-        advanced.Controls.Add(OptionLine("Barra estável por (ms):", stableTime));
+        var blackContent = Number(profile.BlackScreenMaximumContentPercent, 0, 10, 0.5m, 90);
+        advanced.Controls.Add(new Label { Text = "VERIFICAÇÃO E SEGURANÇA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 4, 3, 2) });
+        advanced.Controls.Add(OptionLine("Intervalo entre verificações (ms):", delay));
+        advanced.Controls.Add(OptionLine("Tentativas máximas por etapa:", teleportRetries));
+        advanced.Controls.Add(OptionLine("Semelhança visual mínima (%):", spotSimilarity));
+        advanced.Controls.Add(OptionLine("Tela preta: conteúdo máximo (%):", blackContent));
+        advanced.Controls.Add(OptionLine("Tela deve ficar preta em (s):", blackTimeout));
+        advanced.Controls.Add(OptionLine("Carregamento máximo (s):", loadingTimeout));
+        advancedRoute.Controls.Add(new Label { Text = "TEMPOS DA ROTA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 4, 3, 2) });
+        advancedRoute.Controls.Add(OptionLine("Após clicar no NPC (s):", npcWait));
+        advancedRoute.Controls.Add(OptionLine("Nova tentativa de abrir menu (s):", menuWait));
+        advancedRoute.Controls.Add(OptionLine("Após teleportar para o spot (s):", postSpotWait));
+        advancedRoute.Controls.Add(OptionLine("Espera mínima após reação (ms):", rearmDelay));
+        advancedRoute.Controls.Add(OptionLine("Barra estável por (ms):", stableTime));
         advanced.Controls.Add(new Label { Text = "BARRA DE VIDA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 10, 3, 2) });
         advanced.Controls.Add(barStatus);
         advancedContent.Controls.Add(advanced, 0, 0);
@@ -839,42 +1110,47 @@ sealed class MainForm : Form
             RowCount = 7,
             Padding = new Padding(10, 4, 10, 1)
         };
-        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         spotsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        var useSpots = new BrandToggle
+        var reactionMode = new BrandComboBox
         {
-            Name = "UseSpots",
-            Text = "SPOTS",
-            Checked = profile.UseSpots,
-            Dock = DockStyle.None,
-            Width = 155,
-            Height = 34,
-            Margin = new Padding(3, 1, 3, 1)
+            Name = "ReactionMode",
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 240,
+            Margin = new Padding(3, 4, 3, 1)
         };
+        reactionMode.Items.AddRange(["ROTAÇÃO DE SPOTS", "PARAR APÓS TELEPORTE"]);
+        reactionMode.SelectedIndex = profile.UsesSpotRotation ? 0 : 1;
 
-        var markers = new TableLayoutPanel { Name = "SpotsMarkerSettings", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
-        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
-        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
-        markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        var markers = new TableLayoutPanel { Name = "SpotsMarkerSettings", Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, Margin = Padding.Empty };
+        for (var index = 0; index < 5; index++)
+            markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
         markers.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var spotWindowLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectSpotWindow = MarkerButton("JANELA DE SPOTS");
+        var selectSpotWindow = MarkerButton("MENU DE SPOTS");
         var spotWindowStatus = StepStatus();
         spotWindowStatus.Margin = new Padding(3, 2, 3, 0);
         spotWindowLine.Controls.Add(selectSpotWindow);
         spotWindowLine.Controls.Add(spotWindowStatus);
 
         var spotMenuLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectSpotMenu = MarkerButton("ABRIR MENU");
+        var selectSpotMenu = MarkerButton("ÍCONE ABRIR SPOTS");
         var spotMenuStatus = StepStatus();
         spotMenuStatus.Margin = new Padding(3, 2, 3, 0);
         spotMenuLine.Controls.Add(selectSpotMenu);
         spotMenuLine.Controls.Add(spotMenuStatus);
+
+        var npcIconLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
+        var selectNpcIcon = MarkerButton("ÍCONE NPC");
+        var npcIconStatus = StepStatus();
+        npcIconStatus.Margin = new Padding(3, 2, 3, 0);
+        npcIconLine.Controls.Add(selectNpcIcon);
+        npcIconLine.Controls.Add(npcIconStatus);
 
         var confirmTeleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
         var selectConfirmTeleport = MarkerButton("BOTÃO TELEPORTAR");
@@ -882,9 +1158,18 @@ sealed class MainForm : Form
         confirmTeleportStatus.Margin = new Padding(3, 2, 3, 0);
         confirmTeleportLine.Controls.Add(selectConfirmTeleport);
         confirmTeleportLine.Controls.Add(confirmTeleportStatus);
+
+        var autoLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
+        var selectAuto = MarkerButton("BOTÃO AUTO");
+        var autoStatus = StepStatus();
+        autoStatus.Margin = new Padding(3, 2, 3, 0);
+        autoLine.Controls.Add(selectAuto);
+        autoLine.Controls.Add(autoStatus);
         markers.Controls.Add(spotWindowLine, 0, 0);
         markers.Controls.Add(spotMenuLine, 1, 0);
-        markers.Controls.Add(confirmTeleportLine, 2, 0);
+        markers.Controls.Add(npcIconLine, 2, 0);
+        markers.Controls.Add(confirmTeleportLine, 3, 0);
+        markers.Controls.Add(autoLine, 4, 0);
         var markerTools = new TableLayoutPanel { Name = "SpotsMarkerTools", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
@@ -913,29 +1198,27 @@ sealed class MainForm : Form
         spotsLayout.Controls.Add(markerTools, 0, 2);
 
         var useSpotsHeader = new TableLayoutPanel { Name = "SpotsToggleSettings", Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        useSpotsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         useSpotsHeader.Controls.Add(new Label
         {
-            Text = "USAR SPOTS",
+            Text = "APÓS O PRIMEIRO TELEPORTE",
             AutoSize = true,
-            Anchor = AnchorStyles.Right,
+            Anchor = AnchorStyles.Left,
             ForeColor = Muted,
             Font = new Font("Arial Narrow", 9F, FontStyle.Bold),
-            Margin = new Padding(3, 8, 8, 0)
+            Margin = new Padding(3, 12, 12, 0)
         }, 0, 0);
-        useSpots.Text = string.Empty;
-        useSpots.Width = 64;
-        useSpotsHeader.Controls.Add(useSpots, 1, 0);
+        useSpotsHeader.Controls.Add(reactionMode, 1, 0);
         spotsLayout.Controls.Add(useSpotsHeader, 0, 0);
 
         var routeHeaders = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         routeHeaders.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
         routeHeaders.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         routeHeaders.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-        routeHeaders.Controls.Add(RouteHeader("ORDEM"), 0, 0);
+        routeHeaders.Controls.Add(RouteHeader("#"), 0, 0);
         routeHeaders.Controls.Add(RouteHeader("NOME DO SPOT"), 1, 0);
-        routeHeaders.Controls.Add(RouteHeader("ATIVO"), 2, 0);
+        routeHeaders.Controls.Add(RouteHeader("USAR"), 2, 0);
         spotsLayout.Controls.Add(routeHeaders, 0, 3);
 
         var spots = new SpotListBox
@@ -1004,7 +1287,7 @@ sealed class MainForm : Form
         cyclesRow.Controls.Add(cyclesLine, 0, 0);
         cyclesRow.Controls.Add(resetSpots, 1, 0);
         spotsLayout.Controls.Add(cyclesRow, 0, 6);
-        useSpotsHeader.VisibleChanged += (_, _) => spotsLayout.RowStyles[0].Height = useSpotsHeader.Visible ? 34 : 0;
+        useSpotsHeader.VisibleChanged += (_, _) => spotsLayout.RowStyles[0].Height = useSpotsHeader.Visible ? 58 : 0;
         spotButtons.VisibleChanged += (_, _) => spotsLayout.RowStyles[5].Height = spotButtons.Visible ? 42 : 0;
         cyclesRow.VisibleChanged += (_, _) => spotsLayout.RowStyles[6].Height = cyclesRow.Visible ? 34 : 0;
         spotButtons.SizeChanged += (_, _) =>
@@ -1127,7 +1410,9 @@ sealed class MainForm : Form
             randomTeleportStatus,
             spotWindowStatus,
             spotMenuStatus,
+            npcIconStatus,
             confirmTeleportStatus,
+            autoStatus,
             spotMatch,
             preview,
             spots,
@@ -1206,27 +1491,33 @@ sealed class MainForm : Form
             TrySave();
         };
         selectSpotWindow.Click += (_, _) => SelectSpotWindow(ui);
-        selectSpotMenu.Click += (_, _) => SelectSpotMenu(ui);
+        selectSpotMenu.Click += (_, _) => SelectSpotOpenIcon(ui);
+        selectNpcIcon.Click += (_, _) => SelectNpcIcon(ui);
         selectConfirmTeleport.Click += (_, _) => SelectConfirmTeleport(ui);
+        selectAuto.Click += (_, _) => SelectAuto(ui);
         showMarks.Click += (_, _) => ShowMarks(ui);
-        threshold.ValueChanged += (_, _) => { profile.DropLimitPercent = threshold.Value; TrySave(); };
+        threshold.ValueChanged += (_, _) => { profile.LifeThresholdPercent = threshold.Value; TrySave(); };
         cycles.ValueChanged += (_, _) => { profile.CycleCount = (int)cycles.Value; UpdateProgress(ui); TrySave(); };
         sessionHours.ValueChanged += (_, _) => SaveSessionLimit();
         sessionMinutes.ValueChanged += (_, _) => SaveSessionLimit();
-        useSpots.CheckedChanged += (_, _) =>
+        reactionMode.SelectedIndexChanged += (_, _) =>
         {
             if (_running)
             {
-                useSpots.Checked = profile.UseSpots;
-                MessageBox.Show(this, "Pare a proteção antes de alterar o uso de spots.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                reactionMode.SelectedIndex = profile.UsesSpotRotation ? 0 : 1;
+                MessageBox.Show(this, "Pare a proteção antes de alterar o fluxo após o teleporte.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            profile.UseSpots = useSpots.Checked;
+            profile.ReactionMode = reactionMode.SelectedIndex == 1
+                ? WindowProfile.StopAfterTeleport
+                : WindowProfile.RotateSpots;
             ui.NextSpotIndex = Math.Max(0, FindEnabledSpot(profile.Spots));
             ui.CompletedCycles = 0;
             if (ui.State == ProfileState.Completed)
                 ui.State = ProfileState.Stopped;
+            SetRotationControls();
             UpdateProgress(ui);
+            RefreshProfileUi(ui);
             TrySave();
         };
         spots.ItemCheck += (_, eventArgs) =>
@@ -1262,6 +1553,12 @@ sealed class MainForm : Form
         delay.ValueChanged += (_, _) => { profile.TeleportToSpotDelayMs = (int)delay.Value; TrySave(); };
         teleportRetries.ValueChanged += (_, _) => { profile.TeleportRetryCount = (int)teleportRetries.Value; TrySave(); };
         spotSimilarity.ValueChanged += (_, _) => { profile.SpotWindowMinimumSimilarity = spotSimilarity.Value; TrySave(); };
+        blackContent.ValueChanged += (_, _) => { profile.BlackScreenMaximumContentPercent = blackContent.Value; TrySave(); };
+        blackTimeout.ValueChanged += (_, _) => { profile.BlackScreenTimeoutMs = (int)blackTimeout.Value * 1000; TrySave(); };
+        loadingTimeout.ValueChanged += (_, _) => { profile.LoadingTimeoutMs = (int)loadingTimeout.Value * 1000; TrySave(); };
+        npcWait.ValueChanged += (_, _) => { profile.NpcWaitMs = (int)(npcWait.Value * 1000); TrySave(); };
+        menuWait.ValueChanged += (_, _) => { profile.SpotMenuRetryWaitMs = (int)(menuWait.Value * 1000); TrySave(); };
+        postSpotWait.ValueChanged += (_, _) => { profile.PostSpotTeleportWaitMs = (int)postSpotWait.Value * 1000; TrySave(); };
         rearmDelay.ValueChanged += (_, _) => { profile.RearmDelayMs = (int)rearmDelay.Value; TrySave(); };
         stableTime.ValueChanged += (_, _) => { profile.StableTimeMs = (int)stableTime.Value; TrySave(); };
         advancedToggle.CheckedChanged += (_, _) =>
@@ -1284,6 +1581,7 @@ sealed class MainForm : Form
         test.Click += async (_, _) => await TestReactionAsync(ui);
         backgroundTest.Click += async (_, _) => await TestBackgroundClickAsync(ui);
         backgroundCaptureTest.Click += async (_, _) => await TestBackgroundCaptureAsync(ui);
+        SetRotationControls();
         return (page, windowGroup);
 
         void ResizeAdvanced()
@@ -1308,6 +1606,19 @@ sealed class MainForm : Form
             profile.SessionLimitMinutes = totalMinutes;
             UpdateTime(ui);
             TrySave();
+        }
+
+        void SetRotationControls()
+        {
+            var visible = profile.UsesSpotRotation;
+            markers.Visible = visible;
+            markerTools.Visible = visible;
+            routeHeaders.Visible = visible;
+            spots.Visible = visible;
+            spotButtons.Visible = visible;
+            cyclesRow.Visible = visible;
+            spotsLayout.RowStyles[3].Height = visible ? 24 : 0;
+            spotsLayout.RowStyles[4].Height = visible ? 100 : 0;
         }
 
     }
@@ -1932,11 +2243,76 @@ sealed class MainForm : Form
         TrySave();
     }
 
-    void SelectSpotMenu(ProfileUi ui)
+    void SelectSpotOpenIcon(ProfileUi ui) =>
+        SelectReferenceRegion(
+            ui,
+            "Arraste exatamente sobre o ícone Abrir Spots — Esc cancela",
+            (region, png, bitmap) =>
+            {
+                ui.Profile.SpotOpenIconRegion = region;
+                ui.Profile.SpotOpenIconReferencePng = png;
+                ui.SetSpotOpenIconReference(bitmap);
+            });
+
+    void SelectNpcIcon(ProfileUi ui) =>
+        SelectReferenceRegion(
+            ui,
+            "Arraste exatamente sobre o ícone do NPC — Esc cancela",
+            (region, png, bitmap) =>
+            {
+                ui.Profile.NpcIconRegion = region;
+                ui.Profile.NpcIconReferencePng = png;
+                ui.SetNpcIconReference(bitmap);
+            });
+
+    void SelectReferenceRegion(
+        ProfileUi ui,
+        string instruction,
+        Action<ScreenRegion, byte[], Bitmap> save)
     {
-        if (!CanEdit() || !TrySelectPoint(ui, out var point))
+        if (!CanEdit() || !TryGetTarget(ui, out var choice, out var bounds))
             return;
-        ui.Profile.SpotMenuPoint = new ClickPointConfig { X = point.X, Y = point.Y, Configured = true };
+
+        Rectangle selected = Rectangle.Empty;
+        Bitmap? captured = null;
+        Hide();
+        try
+        {
+            if (!NativeMethods.TryActivate(choice.Handle))
+                return;
+            using var overlay = new RegionOverlay(bounds, instruction: instruction);
+            if (overlay.ShowDialog() != DialogResult.OK)
+                return;
+            selected = overlay.SelectedRegion;
+            var region = new ScreenRegion
+            {
+                X = selected.X,
+                Y = selected.Y,
+                Width = selected.Width,
+                Height = selected.Height
+            };
+            captured = Recognition.Capture(bounds, region);
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+
+        if (captured is null)
+            return;
+        using (captured)
+        using (var stream = new MemoryStream())
+        {
+            captured.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            save(new ScreenRegion
+            {
+                X = selected.X,
+                Y = selected.Y,
+                Width = selected.Width,
+                Height = selected.Height
+            }, stream.ToArray(), captured);
+        }
         RefreshProfileUi(ui);
         TrySave();
     }
@@ -1946,6 +2322,15 @@ sealed class MainForm : Form
         if (!CanEdit() || !TrySelectPoint(ui, out var point))
             return;
         ui.Profile.ConfirmTeleportPoint = new ClickPointConfig { X = point.X, Y = point.Y, Configured = true };
+        RefreshProfileUi(ui);
+        TrySave();
+    }
+
+    void SelectAuto(ProfileUi ui)
+    {
+        if (!CanEdit() || !TrySelectPoint(ui, out var point))
+            return;
+        ui.Profile.AutoPoint = new ClickPointConfig { X = point.X, Y = point.Y, Configured = true };
         RefreshProfileUi(ui);
         TrySave();
     }
@@ -1960,20 +2345,24 @@ sealed class MainForm : Form
             regions.Add((ToRectangle(ui.Profile.HealthBar), "Barra de vida", Color.Yellow));
         if (ui.Profile.SpotWindowRegion.IsConfigured)
             regions.Add((ToRectangle(ui.Profile.SpotWindowRegion), "Janela de spots", Color.DeepSkyBlue));
+        if (ui.Profile.SpotOpenIconRegion.IsConfigured)
+            regions.Add((ToRectangle(ui.Profile.SpotOpenIconRegion), "Abrir spots", Color.Orange));
+        if (ui.Profile.NpcIconRegion.IsConfigured)
+            regions.Add((ToRectangle(ui.Profile.NpcIconRegion), "NPC", Color.MediumPurple));
 
         var points = new List<(Point Point, string Label, Color Color)>();
         if (ui.Profile.TeleportPoint.Configured)
             points.Add((ToPoint(ui.Profile.TeleportPoint), "1 Safe", Color.Red));
         if (ui.Profile.RandomTeleportPoint.Configured)
             points.Add((ToPoint(ui.Profile.RandomTeleportPoint), "1 Random", Color.Magenta));
-        if (ui.Profile.SpotMenuPoint.Configured)
-            points.Add((ToPoint(ui.Profile.SpotMenuPoint), "2 Abrir spots", Color.Orange));
         for (var index = 0; index < ui.Profile.Spots.Count; index++)
             points.Add((new Point(ui.Profile.Spots[index].X, ui.Profile.Spots[index].Y),
-                $"3.{index + 1} {ui.Profile.Spots[index].Name}{(ui.Profile.Spots[index].Enabled ? "" : " (desativado)")}",
+                $"4.{index + 1} {ui.Profile.Spots[index].Name}{(ui.Profile.Spots[index].Enabled ? "" : " (desativado)")}",
                 ui.Profile.Spots[index].Enabled ? Color.DodgerBlue : Color.Gray));
         if (ui.Profile.ConfirmTeleportPoint.Configured)
-            points.Add((ToPoint(ui.Profile.ConfirmTeleportPoint), "4 Teleportar", Color.LimeGreen));
+            points.Add((ToPoint(ui.Profile.ConfirmTeleportPoint), "5 Teleportar", Color.LimeGreen));
+        if (ui.Profile.AutoPoint.Configured)
+            points.Add((ToPoint(ui.Profile.AutoPoint), "6 Auto", Color.Cyan));
 
         if (regions.Count == 0 && points.Count == 0)
         {
@@ -2184,7 +2573,10 @@ sealed class MainForm : Form
     {
         var candidates = _profiles.Where(ui => ui.Profile.ProtectionEnabled
                                                && ui.Profile.IsConfigured
-                                               && (!ui.Profile.UseSpots || ui.SpotWindowReference is not null)
+                                               && (!ui.Profile.UsesSpotRotation
+                                                   || (ui.SpotWindowReference is not null
+                                                       && ui.SpotOpenIconReference is not null
+                                                       && ui.NpcIconReference is not null))
                                                && ui.Window.SelectedItem is WindowChoice).ToList();
         if (candidates.Count == 0)
         {
@@ -2442,7 +2834,7 @@ sealed class MainForm : Form
             SetLifeReading(ui, life, loss);
             ui.Detected.Text = $"Vida estimada: {life:F0}% — queda: {loss:F1}%";
 
-            if (loss >= (double)ui.Profile.DropLimitPercent)
+            if (life <= (double)ui.Profile.LifeThresholdPercent)
                 ui.LossConfirmations++;
             else
                 ui.LossConfirmations = 0;
@@ -2508,7 +2900,16 @@ sealed class MainForm : Form
     {
         if (!ui.Profile.ProtectionEnabled)
             return;
-        if (ui.Profile.UseSpots && !ui.Profile.Spots.Any(item => item.Enabled))
+        if (ui.Profile.UsesSpotRotation && ui.CompletedCycles >= ui.Profile.CycleCount)
+        {
+            ui.State = ProfileState.Reacting;
+            ui.LossConfirmations = 0;
+            SetProfileStatus(ui, "Reagindo", "Rotação concluída; usando o Safe final...");
+            if (await ExecuteInitialTeleportAsync(ui, ui.Profile.TeleportPoint, "Safe final"))
+                CompleteProfile(ui, "Rotação concluída — parado no Safe.");
+            return;
+        }
+        if (ui.Profile.UsesSpotRotation && !ui.Profile.Spots.Any(item => item.Enabled))
         {
             PauseProfile(ui, "Nenhum spot ativo.");
             return;
@@ -2518,120 +2919,216 @@ sealed class MainForm : Form
         ui.LossConfirmations = 0;
         SpotConfig? spot = null;
         var executedSpotIndex = -1;
-        if (ui.Profile.UseSpots)
+        if (ui.Profile.UsesSpotRotation)
         {
             ui.NextSpotIndex = FindEnabledSpot(ui.Profile.Spots, ui.NextSpotIndex);
             executedSpotIndex = ui.NextSpotIndex;
             spot = ui.Profile.Spots[executedSpotIndex];
         }
         SetProfileStatus(ui, "Reagindo", spot is null
-            ? "Usando somente o teleporte..."
-            : $"Usando teleporte e depois {spot.Name}...");
+            ? "Teleportando e encerrando o monitoramento..."
+            : $"Teleportando para iniciar a rotação em {spot.Name}...");
 
-        if (!await ExecuteClicksAsync(ui, spot, true))
+        if (!await ExecuteInitialTeleportAsync(
+                ui,
+                SelectedTeleport(ui.Profile),
+                $"Teleporte {(UsesRandomTeleport(ui.Profile) ? "Random" : "Safe")}"))
             return;
 
-        if (ui.Profile.UseSpots)
+        if (!ui.Profile.UsesSpotRotation)
         {
-            var advanced = AdvanceSequence(
-                executedSpotIndex,
-                ui.CompletedCycles,
-                ui.Profile.Spots,
-                ui.Profile.CycleCount);
-            ui.NextSpotIndex = advanced.NextSpot;
-            ui.CompletedCycles = advanced.CompletedCycles;
-
-            if (advanced.Finished)
-            {
-                ui.State = ProfileState.Completed;
-                ui.SessionWatch.Stop();
-                ui.DisposeCapture();
-                ui.DisposeImages();
-                SetProfileStatus(ui, "Concluída", "Todos os ciclos foram executados.");
-                UpdateProgress(ui);
-                return;
-            }
+            CompleteProfile(ui, "Teleporte concluído — monitoramento pausado.");
+            return;
         }
 
+        if (!await OpenSpotMenuAsync(ui)
+            || spot is null
+            || !await SelectAndConfirmSpotAsync(ui, spot))
+            return;
+
+        SetProfileStatus(ui, "Aguardando",
+            $"Destino confirmado; aguardando {ui.Profile.PostSpotTeleportWaitMs / 1000d:0.#} s antes do Auto.");
+        await Task.Delay(ui.Profile.PostSpotTeleportWaitMs);
+        if (!ui.Profile.ProtectionEnabled
+            || !TryClickProfile(ui, ui.Profile.AutoPoint.X, ui.Profile.AutoPoint.Y, "Botão Auto"))
+            return;
+
+        var advanced = AdvanceSequence(
+            executedSpotIndex,
+            ui.CompletedCycles,
+            ui.Profile.Spots,
+            ui.Profile.CycleCount);
+        ui.NextSpotIndex = advanced.NextSpot;
+        ui.CompletedCycles = advanced.CompletedCycles;
         ui.State = ProfileState.Stabilizing;
         ui.RearmNotBefore = DateTimeOffset.Now.AddMilliseconds(ui.Profile.RearmDelayMs);
         ui.ResetStableCandidate();
-        SetProfileStatus(ui, "Aguardando", "Esperando o jogo e a barra estabilizarem.");
+        SetProfileStatus(ui, "Aguardando", advanced.Finished
+            ? "Último ciclo concluído; o próximo limite de vida acionará o Safe final."
+            : "Auto acionado; voltando a observar a vida.");
         UpdateProgress(ui);
     }
 
-    async Task<bool> ExecuteClicksAsync(ProfileUi ui, SpotConfig? spot, bool pauseOnError)
+    async Task<bool> ExecuteInitialTeleportAsync(ProfileUi ui, ClickPointConfig teleport, string name)
+    {
+        for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
+        {
+            SetProfileStatus(ui, "Reagindo", $"{name}: tentativa {attempt}/{ui.Profile.TeleportRetryCount}.");
+            if (!TryClickProfile(ui, teleport.X, teleport.Y, name))
+                return false;
+
+            if (!await WaitForBlackStateAsync(ui, true, ui.Profile.BlackScreenTimeoutMs))
+                continue;
+
+            SetProfileStatus(ui, "Aguardando", "Tela preta detectada; aguardando o destino carregar.");
+            if (await WaitForBlackStateAsync(ui, false, ui.Profile.LoadingTimeoutMs))
+                return true;
+
+            PauseProfile(ui, $"A imagem não voltou em {ui.Profile.LoadingTimeoutMs / 1000d:0.#} s.");
+            return false;
+        }
+        PauseProfile(ui, $"A tela não ficou preta após {ui.Profile.TeleportRetryCount} tentativa(s) de {name}.");
+        return false;
+    }
+
+    async Task<bool> OpenSpotMenuAsync(ProfileUi ui)
+    {
+        for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
+        {
+            SetProfileStatus(ui, "Reagindo", $"Procurando Abrir Spots ({attempt}/{ui.Profile.TeleportRetryCount})...");
+            if (!TryMeasureReference(
+                    ui,
+                    ui.Profile.SpotOpenIconRegion,
+                    ui.SpotOpenIconReference,
+                    out var openSimilarity,
+                    out var error))
+            {
+                PauseProfile(ui, error);
+                return false;
+            }
+
+            if (openSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
+            {
+                var point = Center(ui.Profile.SpotOpenIconRegion);
+                if (!TryClickProfile(ui, point.X, point.Y, "Ícone Abrir Spots"))
+                    return false;
+                await Task.Delay(ui.Profile.SpotMenuRetryWaitMs);
+                if (!ui.Profile.ProtectionEnabled)
+                    return false;
+                if (!TryMeasureSpotWindow(ui, out var menuSimilarity, out error))
+                {
+                    PauseProfile(ui, error);
+                    return false;
+                }
+                if (menuSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
+                    return true;
+                continue;
+            }
+
+            if (!TryMeasureReference(
+                    ui,
+                    ui.Profile.NpcIconRegion,
+                    ui.NpcIconReference,
+                    out var npcSimilarity,
+                    out error))
+            {
+                PauseProfile(ui, error);
+                return false;
+            }
+            if (npcSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
+            {
+                var point = Center(ui.Profile.NpcIconRegion);
+                if (!TryClickProfile(ui, point.X, point.Y, "Ícone NPC"))
+                    return false;
+            }
+            await Task.Delay(ui.Profile.NpcWaitMs);
+            if (!ui.Profile.ProtectionEnabled)
+                return false;
+        }
+        PauseProfile(ui, "Não foi possível abrir o menu de spots dentro do limite de tentativas.");
+        return false;
+    }
+
+    async Task<bool> SelectAndConfirmSpotAsync(ProfileUi ui, SpotConfig spot)
+    {
+        if (!TryClickProfile(ui, spot.X, spot.Y, spot.Name))
+            return false;
+        await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
+        for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
+        {
+            SetProfileStatus(ui, "Reagindo", $"Confirmando {spot.Name} ({attempt}/{ui.Profile.TeleportRetryCount})...");
+            if (!TryClickProfile(
+                    ui,
+                    ui.Profile.ConfirmTeleportPoint.X,
+                    ui.Profile.ConfirmTeleportPoint.Y,
+                    "Botão Teleportar"))
+                return false;
+            await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
+            if (!ui.Profile.ProtectionEnabled)
+                return false;
+            if (!TryMeasureSpotWindow(ui, out var similarity, out var error))
+            {
+                PauseProfile(ui, error);
+                return false;
+            }
+            if (similarity < (double)ui.Profile.SpotWindowMinimumSimilarity)
+                return true;
+        }
+        PauseProfile(ui, "O botão Teleportar não fechou o menu de spots.");
+        return false;
+    }
+
+    async Task<bool> WaitForBlackStateAsync(ProfileUi ui, bool black, int timeoutMs)
+    {
+        var deadline = DateTimeOffset.Now.AddMilliseconds(timeoutMs);
+        do
+        {
+            if (!ui.Profile.ProtectionEnabled)
+                return false;
+            if (TryCaptureClient(ui, out var frame, out _))
+            {
+                using (frame)
+                {
+                    var isBlack = IsBlackFrame(
+                        Recognition.ContentPercent(frame),
+                        (double)ui.Profile.BlackScreenMaximumContentPercent);
+                    if (isBlack == black)
+                        return true;
+                }
+            }
+            await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
+        }
+        while (DateTimeOffset.Now < deadline);
+        return false;
+    }
+
+    bool TryClickProfile(ProfileUi ui, int x, int y, string name)
     {
         if (!ui.Profile.ProtectionEnabled || ui.Window.SelectedItem is not WindowChoice choice)
             return false;
-
-        var teleport = SelectedTeleport(ui.Profile);
-        if (!Click(teleport.X, teleport.Y, $"Teleporte {(UsesRandomTeleport(ui.Profile) ? "Random" : "Safe")}"))
-            return false;
-
-        if (spot is null)
+        var clicked = ui.Profile.BackgroundMode
+            ? NativeMethods.TryBackgroundClick(choice.Handle, x, y, out var error)
+            : NativeMethods.TryClick(choice.Handle, x, y, out error);
+        if (clicked)
             return true;
-
-        await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
-        if (!ui.Profile.ProtectionEnabled)
-            return false;
-        if (!TryMeasureSpotWindow(ui, out var similarity, out var error))
-            return Fail(error);
-
-        if (similarity < (double)ui.Profile.SpotWindowMinimumSimilarity)
-        {
-            if (!Click(ui.Profile.SpotMenuPoint.X, ui.Profile.SpotMenuPoint.Y, "Abrir spots"))
-                return false;
-            await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
-            if (!ui.Profile.ProtectionEnabled)
-                return false;
-            if (!TryMeasureSpotWindow(ui, out similarity, out error))
-                return Fail(error);
-            if (similarity < (double)ui.Profile.SpotWindowMinimumSimilarity)
-                return Fail($"Janela de spots não reconhecida ({similarity:F0}% de semelhança). Refaça a marcação ou ajuste o limite.");
-        }
-
-        if (!Click(spot.X, spot.Y, spot.Name))
-            return false;
-        await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
-        if (!ui.Profile.ProtectionEnabled)
-            return false;
-        for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
-        {
-            SetProfileStatus(ui, "Reagindo", $"Confirmando teleporte ({attempt}/{ui.Profile.TeleportRetryCount})...");
-            if (!Click(ui.Profile.ConfirmTeleportPoint.X, ui.Profile.ConfirmTeleportPoint.Y, "Botão Teleportar"))
-                return false;
-            await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
-            if (!ui.Profile.ProtectionEnabled)
-                return false;
-            if (!TryMeasureSpotWindow(ui, out similarity, out error))
-                return Fail(error);
-            if (similarity < (double)ui.Profile.SpotWindowMinimumSimilarity)
-                return true;
-        }
-        return Fail($"Teleporte não confirmado após {ui.Profile.TeleportRetryCount} tentativa(s). A janela de spots continuou aberta.");
-
-        bool Click(int x, int y, string name)
-        {
-            if (!ui.Profile.ProtectionEnabled)
-                return false;
-            var clicked = ui.Profile.BackgroundMode
-                ? NativeMethods.TryBackgroundClick(choice.Handle, x, y, out var clickError)
-                : NativeMethods.TryClick(choice.Handle, x, y, out clickError);
-            if (clicked)
-                return true;
-            return Fail($"{name} não clicado: {clickError}");
-        }
-
-        bool Fail(string message)
-        {
-            if (pauseOnError)
-                PauseProfile(ui, message);
-            else
-                MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return false;
-        }
+        PauseProfile(ui, $"{name} não clicado: {error}");
+        return false;
     }
+
+    void CompleteProfile(ProfileUi ui, string detail)
+    {
+        ui.State = ProfileState.Completed;
+        ui.SessionWatch.Stop();
+        ui.DisposeCapture();
+        ui.DisposeImages();
+        SetProfileStatus(ui, "Concluída", detail);
+    }
+
+    static Point Center(ScreenRegion region) =>
+        new(region.X + region.Width / 2, region.Y + region.Height / 2);
+
+    static bool IsBlackFrame(double contentPercent, double maximumContentPercent) =>
+        contentPercent <= maximumContentPercent;
 
     void ProcessStabilizing(ProfileUi ui, Bitmap current)
     {
@@ -2770,14 +3267,17 @@ sealed class MainForm : Form
             return;
         }
         if (!ui.Profile.IsConfigured
-            || (ui.Profile.UseSpots && ui.SpotWindowReference is null)
+            || (ui.Profile.UsesSpotRotation
+                && (ui.SpotWindowReference is null
+                    || ui.SpotOpenIconReference is null
+                    || ui.NpcIconReference is null))
             || ui.Window.SelectedItem is not WindowChoice)
         {
-            MessageBox.Show(this, "Conclua os quatro passos antes de testar.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, "Conclua a Configuração guiada antes de testar.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
         SpotConfig? spot = null;
-        if (ui.Profile.UseSpots)
+        if (ui.Profile.UsesSpotRotation)
         {
             ui.NextSpotIndex = FindEnabledSpot(ui.Profile.Spots, ui.NextSpotIndex);
             spot = ui.Profile.Spots[ui.NextSpotIndex];
@@ -2791,7 +3291,7 @@ sealed class MainForm : Form
                 MessageBoxIcon.Question) != DialogResult.Yes)
             return;
         var temporaryCapture = false;
-        if (ui.Profile.BackgroundMode && spot is not null)
+        if (ui.Profile.BackgroundMode)
         {
             var capture = await StartBackgroundCaptureAsync(ui);
             if (!capture.Started)
@@ -2801,7 +3301,22 @@ sealed class MainForm : Form
             }
             temporaryCapture = true;
         }
-        await ExecuteClicksAsync(ui, spot, false);
+        else
+        {
+            WindowState = FormWindowState.Minimized;
+            await Task.Delay(350);
+        }
+        var previousSpot = ui.NextSpotIndex;
+        var previousCycles = ui.CompletedCycles;
+        ui.State = ProfileState.Monitoring;
+        await ReactAsync(ui);
+        ui.NextSpotIndex = previousSpot;
+        ui.CompletedCycles = previousCycles;
+        if (ui.State != ProfileState.Error)
+        {
+            ui.State = ProfileState.Stopped;
+            SetProfileStatus(ui, "Parada", "Teste completo; sequência preservada.");
+        }
         if (temporaryCapture)
             ui.DisposeCapture();
         Show();
@@ -2914,10 +3429,55 @@ sealed class MainForm : Form
         return true;
     }
 
+    bool TryMeasureReference(
+        ProfileUi ui,
+        ScreenRegion region,
+        Bitmap? reference,
+        out double similarity,
+        out string error)
+    {
+        similarity = 0;
+        if (reference is null)
+        {
+            error = "Uma referência visual da rota está ausente. Abra a Configuração guiada e marque-a novamente.";
+            return false;
+        }
+        if (!TryCaptureRegion(ui, region, "A referência visual", out var current, out error))
+            return false;
+        using (current)
+            similarity = Math.Clamp(100 - Recognition.DifferencePercent(reference, current), 0, 100);
+        return true;
+    }
+
+    bool TryCaptureClient(ProfileUi ui, out Bitmap bitmap, out string error)
+    {
+        bitmap = null!;
+        error = "";
+        if (ui.Window.SelectedItem is not WindowChoice choice
+            || !NativeMethods.TryGetClientScreenBounds(choice.Handle, out var client))
+        {
+            error = "Janela não encontrada.";
+            return false;
+        }
+        return TryCaptureRegion(
+            ui,
+            new ScreenRegion { Width = client.Width, Height = client.Height },
+            "A janela",
+            out bitmap,
+            out error,
+            true);
+    }
+
     bool TryCaptureBar(ProfileUi ui, out Bitmap bitmap, out string error) =>
         TryCaptureRegion(ui, ui.Profile.HealthBar, "A barra", out bitmap, out error);
 
-    bool TryCaptureRegion(ProfileUi ui, ScreenRegion region, string name, out Bitmap bitmap, out string error)
+    bool TryCaptureRegion(
+        ProfileUi ui,
+        ScreenRegion region,
+        string name,
+        out Bitmap bitmap,
+        out string error,
+        bool allowBlack = false)
     {
         bitmap = null!;
         error = "";
@@ -2934,7 +3494,7 @@ sealed class MainForm : Form
                 ui.CaptureStatus.Text = "Captura: parada";
                 return false;
             }
-            if (ui.Capture.TryGetRegion(region, out bitmap, out error))
+            if (ui.Capture.TryGetRegion(region, out bitmap, out error, allowBlack))
             {
                 ui.CaptureStatus.Text = "Captura: segundo plano ativo";
                 return true;
@@ -3011,9 +3571,15 @@ sealed class MainForm : Form
             RefreshOverview(ui);
             return;
         }
-        if (!ui.Profile.UseSpots)
+        if (!ui.Profile.UsesSpotRotation)
         {
-            ui.Progress.Text = "Somente teleporte";
+            ui.Progress.Text = "Parar após teleporte";
+            RefreshOverview(ui);
+            return;
+        }
+        if (ui.CompletedCycles >= ui.Profile.CycleCount)
+        {
+            ui.Progress.Text = "Safe final na próxima queda";
             RefreshOverview(ui);
             return;
         }
@@ -3050,10 +3616,16 @@ sealed class MainForm : Form
             ? $"✓ {ui.Profile.SpotWindowRegion.Width} × {ui.Profile.SpotWindowRegion.Height}"
             : "Não configurado";
         ui.SpotWindowStatus.ForeColor = spotWindowConfigured ? Acid : Coral;
-        ui.SpotMenuStatus.Text = ui.Profile.SpotMenuPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
-        ui.SpotMenuStatus.ForeColor = ui.Profile.SpotMenuPoint.Configured ? Acid : Coral;
+        var openConfigured = ui.Profile.SpotOpenIconRegion.IsConfigured && ui.SpotOpenIconReference is not null;
+        ui.SpotMenuStatus.Text = openConfigured ? "✓ Referência salva" : "Não configurado";
+        ui.SpotMenuStatus.ForeColor = openConfigured ? Acid : Coral;
+        var npcConfigured = ui.Profile.NpcIconRegion.IsConfigured && ui.NpcIconReference is not null;
+        ui.NpcIconStatus.Text = npcConfigured ? "✓ Referência salva" : "Não configurado";
+        ui.NpcIconStatus.ForeColor = npcConfigured ? Acid : Coral;
         ui.ConfirmTeleportStatus.Text = ui.Profile.ConfirmTeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
         ui.ConfirmTeleportStatus.ForeColor = ui.Profile.ConfirmTeleportPoint.Configured ? Acid : Coral;
+        ui.AutoStatus.Text = ui.Profile.AutoPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
+        ui.AutoStatus.ForeColor = ui.Profile.AutoPoint.Configured ? Acid : Coral;
         if (!spotWindowConfigured)
         {
             ui.SpotMatch.Text = "Semelhança atual: --";
@@ -3297,6 +3869,8 @@ sealed class MainForm : Form
             throw new InvalidOperationException("Falha no limite do contador de sessão.");
         if (!IsActiveState(ProfileState.Searching) || IsActiveState(ProfileState.Error))
             throw new InvalidOperationException("Falha no estado de procura automática da barra.");
+        if (!IsBlackFrame(0.5, 1) || IsBlackFrame(1.5, 1))
+            throw new InvalidOperationException("Falha na detecção configurável de tela preta.");
         var nextSearch = DateTimeOffset.UnixEpoch.AddSeconds(BarSearchIntervalSeconds);
         if (IsBarSearchDue(nextSearch.AddMilliseconds(-1), nextSearch)
             || !IsBarSearchDue(nextSearch, nextSearch))
@@ -3307,7 +3881,7 @@ sealed class MainForm : Form
             HealthBar = new ScreenRegion { Width = 100, Height = 10 },
             FullHealthRedWidth = 100,
             TeleportPoint = new ClickPointConfig { Configured = true },
-            UseSpots = false
+            ReactionMode = WindowProfile.StopAfterTeleport
         };
         if (!profile.IsConfigured)
             throw new InvalidOperationException("O modo sem spots deveria estar configurado.");
@@ -3322,13 +3896,17 @@ sealed class MainForm : Form
         profile.TeleportMode = "Safe";
         if (!ReferenceEquals(SelectedTeleport(profile), profile.TeleportPoint))
             throw new InvalidOperationException("O modo Safe não selecionou o ponto correto.");
-        profile.UseSpots = true;
+        profile.ReactionMode = WindowProfile.RotateSpots;
         if (profile.IsConfigured)
             throw new InvalidOperationException("O modo com spots deveria exigir a rota completa.");
         profile.SpotWindowRegion = new ScreenRegion { Width = 20, Height = 20 };
         profile.SpotWindowReferencePng = [1];
-        profile.SpotMenuPoint = new ClickPointConfig { Configured = true };
+        profile.SpotOpenIconRegion = new ScreenRegion { Width = 10, Height = 10 };
+        profile.SpotOpenIconReferencePng = [1];
+        profile.NpcIconRegion = new ScreenRegion { Width = 10, Height = 10 };
+        profile.NpcIconReferencePng = [1];
         profile.ConfirmTeleportPoint = new ClickPointConfig { Configured = true };
+        profile.AutoPoint = new ClickPointConfig { Configured = true };
         profile.Spots.Add(new SpotConfig());
         if (!profile.IsConfigured)
             throw new InvalidOperationException("A rota completa de spots deveria estar configurada.");
@@ -3365,6 +3943,17 @@ sealed class MainForm : Form
         Label Time,
         Label Remaining);
 
+    sealed record SetupStep(
+        string Id,
+        int ProfileIndex,
+        string Title,
+        string Instruction,
+        string Target,
+        bool Optional,
+        Func<ProfileUi, bool> Relevant,
+        Func<ProfileUi, bool> Complete,
+        string Error);
+
     sealed class ProfileUi : IDisposable
     {
         public WindowProfile Profile { get; }
@@ -3375,7 +3964,9 @@ sealed class MainForm : Form
         public Label RandomTeleportStatus { get; }
         public Label SpotWindowStatus { get; }
         public Label SpotMenuStatus { get; }
+        public Label NpcIconStatus { get; }
         public Label ConfirmTeleportStatus { get; }
+        public Label AutoStatus { get; }
         public Label SpotMatch { get; }
         public PictureBox Preview { get; }
         public CheckedListBox Spots { get; }
@@ -3396,6 +3987,8 @@ sealed class MainForm : Form
         public bool UpdatingSpotChecks { get; set; }
         public Bitmap? StableCandidate { get; private set; }
         public Bitmap? SpotWindowReference { get; private set; }
+        public Bitmap? SpotOpenIconReference { get; private set; }
+        public Bitmap? NpcIconReference { get; private set; }
         public WindowCapture? Capture { get; set; }
         public DateTimeOffset StableSince { get; set; }
         public DateTimeOffset RearmNotBefore { get; set; }
@@ -3411,7 +4004,9 @@ sealed class MainForm : Form
             Label randomTeleportStatus,
             Label spotWindowStatus,
             Label spotMenuStatus,
+            Label npcIconStatus,
             Label confirmTeleportStatus,
+            Label autoStatus,
             Label spotMatch,
             PictureBox preview,
             CheckedListBox spots,
@@ -3433,7 +4028,9 @@ sealed class MainForm : Form
             RandomTeleportStatus = randomTeleportStatus;
             SpotWindowStatus = spotWindowStatus;
             SpotMenuStatus = spotMenuStatus;
+            NpcIconStatus = npcIconStatus;
             ConfirmTeleportStatus = confirmTeleportStatus;
+            AutoStatus = autoStatus;
             SpotMatch = spotMatch;
             Preview = preview;
             Spots = spots;
@@ -3447,19 +4044,9 @@ sealed class MainForm : Form
             LifeLoss = lifeLoss;
             RemainingTimeLabel = remainingTimeLabel;
 
-            if (profile.SpotWindowReferencePng.Length > 0)
-            {
-                try
-                {
-                    using var stream = new MemoryStream(profile.SpotWindowReferencePng);
-                    using var bitmap = new Bitmap(stream);
-                    SpotWindowReference = new Bitmap(bitmap);
-                }
-                catch
-                {
-                    SpotWindowReference = null;
-                }
-            }
+            SpotWindowReference = LoadReference(profile.SpotWindowReferencePng);
+            SpotOpenIconReference = LoadReference(profile.SpotOpenIconReferencePng);
+            NpcIconReference = LoadReference(profile.NpcIconReferencePng);
         }
 
         public void SetStableCandidate(Bitmap bitmap)
@@ -3472,6 +4059,18 @@ sealed class MainForm : Form
         {
             SpotWindowReference?.Dispose();
             SpotWindowReference = new Bitmap(bitmap);
+        }
+
+        public void SetSpotOpenIconReference(Bitmap bitmap)
+        {
+            SpotOpenIconReference?.Dispose();
+            SpotOpenIconReference = new Bitmap(bitmap);
+        }
+
+        public void SetNpcIconReference(Bitmap bitmap)
+        {
+            NpcIconReference?.Dispose();
+            NpcIconReference = new Bitmap(bitmap);
         }
 
         public void ResetStableCandidate()
@@ -3508,8 +4107,28 @@ sealed class MainForm : Form
             DisposeImages();
             SpotWindowReference?.Dispose();
             SpotWindowReference = null;
+            SpotOpenIconReference?.Dispose();
+            SpotOpenIconReference = null;
+            NpcIconReference?.Dispose();
+            NpcIconReference = null;
             Preview.Image?.Dispose();
             Preview.Image = null;
+        }
+
+        static Bitmap? LoadReference(byte[] png)
+        {
+            if (png.Length == 0)
+                return null;
+            try
+            {
+                using var stream = new MemoryStream(png);
+                using var bitmap = new Bitmap(stream);
+                return new Bitmap(bitmap);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

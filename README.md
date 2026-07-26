@@ -1,12 +1,12 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 1.3.0 — Dibre a concorrência**
+**Versão 2.0.0 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
-Nesta versão, os teleportes **Safe** e **Random** possuem marcações próprias e o tipo usado pode ser escolhido por janela.
+Nesta versão, a **Configuração guiada** conduz todas as marcações e opções de cada janela. A reação pode parar após o primeiro teleporte ou percorrer uma rota de spots.
 
-Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e pode executar uma sequência de teleporte e spots quando a vida cair além do limite configurado.
+Programa portátil para Windows que monitora até duas janelas de forma independente. Ele reconhece a parte vermelha da barra de vida e executa a reação quando a vida restante fica abaixo da porcentagem configurada.
 
 ## Requisitos
 
@@ -23,6 +23,7 @@ Programa portátil para Windows que monitora até duas janelas de forma independ
 4. Se o SmartScreen avisar que o arquivo não é reconhecido, confira se o arquivo veio de uma fonte confiável. O programa não possui assinatura digital.
 5. Abra a janela do jogo ou programa que será monitorado.
 6. No ControlarTela, clique em **Atualizar janelas**.
+7. Na primeira execução, siga a **Configuração guiada**. Ela também pode ser reaberta pelo menu lateral.
 
 As configurações são salvas somente para o usuário atual em:
 
@@ -65,34 +66,39 @@ O programa mede somente a largura vermelha. Números brancos, fundo, moldura e f
 2. Use **Marcar Safe** e/ou **Marcar Random** para registrar cada posição.
 3. Em **Usar teleporte**, escolha qual deles será clicado quando a vida cair.
 
-### 4. Defina o limite
+### 4. Defina o limite de vida
 
-Em **Reagir ao cair**, informe a queda permitida.
+Em **Reagir com vida abaixo de**, informe a porcentagem de vida restante que dispara a reação.
 
-Exemplo: limite de `40%` executa a reação quando a vida chegar aproximadamente a `60%` ou menos.
+Exemplo: limite de `40%` executa a reação quando a vida ficar abaixo de aproximadamente `40%`.
 
 ## Usando somente o teleporte
 
-Desative **Usar spots** no cartão **Rota de spots**. Quando o limite for atingido, o programa clicará somente no item de teleporte.
+Em **Rota de spots**, escolha **Parar após teleporte**. Quando o limite for atingido, o programa:
+
+1. clica no item Safe ou Random escolhido;
+2. confirma que a tela ficou preta e voltou;
+3. pausa somente aquela janela.
 
 ## Configurando spots
 
-Se quiser escolher um spot após usar o item de teleporte:
+Em **Rota de spots**, escolha **Rotação de spots** e configure:
 
-1. Ative **Usar spots** no cartão **Rota de spots**.
-2. Abra manualmente a janela de spots no jogo.
-3. Clique em **Rota de spots** na barra lateral.
-4. Use **Janela de spots** para selecionar a área que identifica o menu.
-5. Use **Abrir menu** para marcar o botão que abre os spots.
-6. Use **Botão Teleportar** para marcar o botão de confirmação.
-7. Use **Adicionar** para cadastrar cada posição.
-8. Ative na lista somente os spots que participarão da sequência e defina quantas vezes a rota será repetida.
+1. **Menu de spots**: a área visual que confirma que o menu abriu.
+2. **Ícone Abrir spots**: a área visual do ícone que abre o menu.
+3. **Ícone NPC**: a área visual do ícone usado quando **Abrir spots** ainda não aparece.
+4. **Botão Teleportar**: o ponto do botão de confirmação.
+5. **Botão Auto**: o ponto acionado depois da espera no novo spot.
+6. **Marcar Safe**: obrigatório porque, ao terminar todos os ciclos, a próxima reação leva ao Safe e pausa a janela.
+7. Os spots ativos, sua ordem e o número de repetições da rota.
 
 Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirmação, clique no primeiro spot; o programa abrirá imediatamente a marcação seguinte. Continue clicando nos spots na ordem desejada e pressione `Esc` para concluir. Se `Esc` for pressionado antes do primeiro ponto, a rota anterior será mantida.
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-Em **Configurações**, ajuste **Tentativas no botão Teleportar**. Após cada clique, o programa verifica se a janela de spots fechou. Se ela continuar aberta por stagger ou lag, o botão é acionado novamente usando o **Intervalo entre cliques**. Se todas as tentativas falharem, a proteção daquela janela pausa sem avançar o spot ou o ciclo.
+O fluxo confirma a tela preta após o teleporte inicial, aguarda o carregamento, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
+
+Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, tela preta, carregamento, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
 
 ## Tempo da sessão
 

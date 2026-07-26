@@ -72,13 +72,16 @@ static class Program
                 var routeNav = FindAll(form).OfType<Button>().First(button => button.Text.Contains("ROTA DE SPOTS"));
                 routeNav.PerformClick();
                 Application.DoEvents();
+                var reactionMode = (ComboBox)RequiredVisible(form, "ReactionMode");
+                reactionMode.SelectedIndex = 0;
+                Application.DoEvents();
                 var activePage = pages.Single(page => page.Visible);
                 if (!activePage.Controls.Find("SpotsModule", true).Single().Visible
                     || new[] { "LifeModule", "TeleportModule", "SessionGroup" }
                         .Any(name => activePage.Controls.Find(name, true).Single().Visible))
                     throw new InvalidOperationException("A navegação lateral não isolou o módulo de spots.");
-                AssertInside(RequiredVisible(form, "UseSpots"));
-                foreach (var text in new[] { "JANELA DE SPOTS", "ABRIR MENU", "BOTÃO TELEPORTAR" })
+                AssertInside(reactionMode);
+                foreach (var text in new[] { "MENU DE SPOTS", "ÍCONE ABRIR SPOTS", "ÍCONE NPC", "BOTÃO TELEPORTAR", "BOTÃO AUTO" })
                     AssertInside(RequiredVisibleButton(form, text));
                 var spotsList = (CheckedListBox)RequiredVisible(form, "SpotsList");
                 if (spotsList.ClientSize.Height / spotsList.ItemHeight < 5)
@@ -119,6 +122,9 @@ static class Program
                 var viewport = RequiredVisible(form, "Viewport");
                 if (advancedGroup.Width < viewport.ClientSize.Width - 80)
                     throw new InvalidOperationException("As opções avançadas foram comprimidas horizontalmente.");
+                FindAll(form).OfType<Button>().First(button => button.Text.Contains("CONFIGURAÇÃO GUIADA")).PerformClick();
+                Application.DoEvents();
+                AssertInside(RequiredVisible(form, "SetupGuide"));
                 return 0;
             }
             catch (Exception exception)
@@ -157,6 +163,9 @@ static class Program
             CaptureSection("TELEPORTE", $"{prefix}-teleport");
             CaptureSection("ROTA DE SPOTS", $"{prefix}-spots");
             CaptureSection("CONFIGURAÇÕES", $"{prefix}-advanced");
+            CaptureSection("CONFIGURAÇÃO GUIADA", $"{prefix}-guide");
+            RequiredVisibleButton(form, "FECHAR").PerformClick();
+            Application.DoEvents();
         }
 
         void CaptureSection(string navigationText, string fileName)
