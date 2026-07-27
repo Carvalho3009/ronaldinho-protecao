@@ -1065,7 +1065,6 @@ sealed class MainForm : Form
         advancedRoute.Padding = new Padding(18, 4, 8, 4);
         var delay = Number(profile.TeleportToSpotDelayMs, 100, 10_000, 100, 90);
         var teleportRetries = Number(profile.TeleportRetryCount, 1, 20, 1, 90);
-        var blackTimeout = Number(profile.BlackScreenTimeoutMs / 1000, 1, 60, 1, 90);
         var loadingTimeout = Number(profile.LoadingTimeoutMs / 1000, 1, 120, 1, 90);
         var npcWait = Number(profile.NpcWaitMs / 1000m, 0.1m, 60, 0.1m, 90);
         var menuWait = Number(profile.SpotMenuRetryWaitMs / 1000m, 0.1m, 60, 0.1m, 90);
@@ -1073,15 +1072,12 @@ sealed class MainForm : Form
         var rearmDelay = Number(profile.RearmDelayMs, 1000, 60_000, 500, 90);
         var stableTime = Number(profile.StableTimeMs, 500, 10_000, 500, 90);
         var spotSimilarity = Number(profile.SpotWindowMinimumSimilarity, 50, 100, 1, 90);
-        var blackContent = Number(profile.BlackScreenMaximumContentPercent, 0, 10, 0.5m, 90);
         advanced.Controls.Add(new Label { Text = "VERIFICAÇÃO E SEGURANÇA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 4, 3, 2) });
         advanced.Controls.Add(OptionLine("Intervalo entre verificações (ms):", delay));
         advanced.Controls.Add(OptionLine("Tentativas máximas por etapa:", teleportRetries));
         advanced.Controls.Add(OptionLine("Semelhança visual mínima (%):", spotSimilarity));
-        advanced.Controls.Add(OptionLine("Tela preta: conteúdo máximo (%):", blackContent));
-        advanced.Controls.Add(OptionLine("Tela deve ficar preta em (s):", blackTimeout));
-        advanced.Controls.Add(OptionLine("Carregamento máximo (s):", loadingTimeout));
         advancedRoute.Controls.Add(new Label { Text = "TEMPOS DA ROTA", AutoSize = true, ForeColor = Gold, Margin = new Padding(3, 4, 3, 2) });
+        advancedRoute.Controls.Add(OptionLine("Após teleporte inicial (s):", loadingTimeout));
         advancedRoute.Controls.Add(OptionLine("Após clicar no NPC (s):", npcWait));
         advancedRoute.Controls.Add(OptionLine("Nova tentativa de abrir menu (s):", menuWait));
         advancedRoute.Controls.Add(OptionLine("Após teleportar para o spot (s):", postSpotWait));
@@ -1555,8 +1551,6 @@ sealed class MainForm : Form
         delay.ValueChanged += (_, _) => { profile.TeleportToSpotDelayMs = (int)delay.Value; TrySave(); };
         teleportRetries.ValueChanged += (_, _) => { profile.TeleportRetryCount = (int)teleportRetries.Value; TrySave(); };
         spotSimilarity.ValueChanged += (_, _) => { profile.SpotWindowMinimumSimilarity = spotSimilarity.Value; TrySave(); };
-        blackContent.ValueChanged += (_, _) => { profile.BlackScreenMaximumContentPercent = blackContent.Value; TrySave(); };
-        blackTimeout.ValueChanged += (_, _) => { profile.BlackScreenTimeoutMs = (int)blackTimeout.Value * 1000; TrySave(); };
         loadingTimeout.ValueChanged += (_, _) => { profile.LoadingTimeoutMs = (int)loadingTimeout.Value * 1000; TrySave(); };
         npcWait.ValueChanged += (_, _) => { profile.NpcWaitMs = (int)(npcWait.Value * 1000); TrySave(); };
         menuWait.ValueChanged += (_, _) => { profile.SpotMenuRetryWaitMs = (int)(menuWait.Value * 1000); TrySave(); };
@@ -2978,26 +2972,13 @@ sealed class MainForm : Form
 
     async Task<bool> ExecuteInitialTeleportAsync(ProfileUi ui, ClickPointConfig teleport, string name)
     {
-        for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
-        {
-            SetProfileStatus(ui, "Reagindo", $"{name}: tentativa {attempt}/{ui.Profile.TeleportRetryCount}.");
-            if (!TryClickProfile(ui, teleport.X, teleport.Y, name))
-                return false;
-
-            var blackDeadline = DateTimeOffset.Now.AddMilliseconds(ui.Profile.BlackScreenTimeoutMs);
-            if (!await WaitForBlackStateAsync(ui, true, blackDeadline))
-                continue;
-
-            SetProfileStatus(ui, "Aguardando", "Tela preta detectada; aguardando o destino carregar.");
-            var loadingDeadline = DateTimeOffset.Now.AddMilliseconds(ui.Profile.LoadingTimeoutMs);
-            if (await WaitForBlackStateAsync(ui, false, loadingDeadline))
-                return true;
-
-            PauseProfile(ui, $"A imagem não voltou em {ui.Profile.LoadingTimeoutMs / 1000d:0.#} s.");
+        SetProfileStatus(ui, "Reagindo", $"Clicando em {name}.");
+        if (!TryClickProfile(ui, teleport.X, teleport.Y, name))
             return false;
-        }
-        PauseProfile(ui, $"A tela não ficou preta após {ui.Profile.TeleportRetryCount} tentativa(s) de {name}.");
-        return false;
+        SetProfileStatus(ui, "Aguardando",
+            $"{name} acionado; aguardando {ui.Profile.LoadingTimeoutMs / 1000d:0.#} s.");
+        await Task.Delay(ui.Profile.LoadingTimeoutMs);
+        return ui.Profile.ProtectionEnabled;
     }
 
     async Task<bool> OpenSpotMenuAsync(ProfileUi ui)
@@ -3093,29 +3074,6 @@ sealed class MainForm : Form
         return false;
     }
 
-    async Task<bool> WaitForBlackStateAsync(ProfileUi ui, bool black, DateTimeOffset deadline)
-    {
-        do
-        {
-            if (!ui.Profile.ProtectionEnabled)
-                return false;
-            if (TryCaptureClient(ui, out var frame, out _))
-            {
-                using (frame)
-                {
-                    var isBlack = IsBlackFrame(
-                        Recognition.ContentPercent(frame),
-                        (double)ui.Profile.BlackScreenMaximumContentPercent);
-                    if (isBlack == black)
-                        return true;
-                }
-            }
-            await Task.Delay(50);
-        }
-        while (DateTimeOffset.Now < deadline);
-        return false;
-    }
-
     bool TryClickProfile(ProfileUi ui, int x, int y, string name)
     {
         if (!ui.Profile.ProtectionEnabled || ui.Window.SelectedItem is not WindowChoice choice)
@@ -3137,9 +3095,6 @@ sealed class MainForm : Form
         ui.DisposeImages();
         SetProfileStatus(ui, "Concluída", detail);
     }
-
-    static bool IsBlackFrame(double contentPercent, double maximumContentPercent) =>
-        contentPercent <= maximumContentPercent;
 
     void ProcessStabilizing(ProfileUi ui, Bitmap current)
     {
@@ -3460,25 +3415,6 @@ sealed class MainForm : Form
         return true;
     }
 
-    bool TryCaptureClient(ProfileUi ui, out Bitmap bitmap, out string error)
-    {
-        bitmap = null!;
-        error = "";
-        if (ui.Window.SelectedItem is not WindowChoice choice
-            || !NativeMethods.TryGetClientScreenBounds(choice.Handle, out var client))
-        {
-            error = "Janela não encontrada.";
-            return false;
-        }
-        return TryCaptureRegion(
-            ui,
-            new ScreenRegion { Width = client.Width, Height = client.Height },
-            "A janela",
-            out bitmap,
-            out error,
-            true);
-    }
-
     bool TryCaptureBar(ProfileUi ui, out Bitmap bitmap, out string error) =>
         TryCaptureRegion(ui, ui.Profile.HealthBar, "A barra", out bitmap, out error);
 
@@ -3487,8 +3423,7 @@ sealed class MainForm : Form
         ScreenRegion region,
         string name,
         out Bitmap bitmap,
-        out string error,
-        bool allowBlack = false)
+        out string error)
     {
         bitmap = null!;
         error = "";
@@ -3505,7 +3440,7 @@ sealed class MainForm : Form
                 ui.CaptureStatus.Text = "Captura: parada";
                 return false;
             }
-            if (ui.Capture.TryGetRegion(region, out bitmap, out error, allowBlack))
+            if (ui.Capture.TryGetRegion(region, out bitmap, out error))
             {
                 ui.CaptureStatus.Text = "Captura: segundo plano ativo";
                 return true;
@@ -3884,8 +3819,6 @@ sealed class MainForm : Form
             throw new InvalidOperationException("Falha no limite do contador de sessão.");
         if (!IsActiveState(ProfileState.Searching) || IsActiveState(ProfileState.Error))
             throw new InvalidOperationException("Falha no estado de procura automática da barra.");
-        if (!IsBlackFrame(0.5, 1) || IsBlackFrame(1.5, 1))
-            throw new InvalidOperationException("Falha na detecção configurável de tela preta.");
         var iconRegion = ReferenceRegion(new Point(5, 5), new Size(100, 80));
         if (iconRegion.X != 0 || iconRegion.Y != 0 || iconRegion.Width != 48 || iconRegion.Height != 48)
             throw new InvalidOperationException("Falha na referência visual automática ao redor do ponto.");

@@ -61,12 +61,10 @@ sealed class WindowProfile
     public ClickPointConfig AutoPoint { get; set; } = new();
     public BindingList<SpotConfig> Spots { get; set; } = [];
     public decimal SpotWindowMinimumSimilarity { get; set; } = 80;
-    public decimal BlackScreenMaximumContentPercent { get; set; } = 1;
     public int CycleCount { get; set; } = 1;
     public int SessionLimitMinutes { get; set; } = 60;
     public int TeleportToSpotDelayMs { get; set; } = 1000;
     public int TeleportRetryCount { get; set; } = 5;
-    public int BlackScreenTimeoutMs { get; set; } = 5000;
     public int LoadingTimeoutMs { get; set; } = 30_000;
     public int NpcWaitMs { get; set; } = 3000;
     public int SpotMenuRetryWaitMs { get; set; } = 5000;
@@ -143,12 +141,10 @@ sealed class AppConfig
             profile.AutoPoint ??= new ClickPointConfig();
             profile.Spots ??= [];
             profile.SpotWindowMinimumSimilarity = Math.Clamp(profile.SpotWindowMinimumSimilarity, 50, 100);
-            profile.BlackScreenMaximumContentPercent = Math.Clamp(profile.BlackScreenMaximumContentPercent, 0, 10);
             profile.CycleCount = Math.Clamp(profile.CycleCount, 1, 999);
             profile.SessionLimitMinutes = Math.Clamp(profile.SessionLimitMinutes, 1, 10_080);
             profile.TeleportToSpotDelayMs = Math.Clamp(profile.TeleportToSpotDelayMs, 100, 10_000);
             profile.TeleportRetryCount = Math.Clamp(profile.TeleportRetryCount, 1, 20);
-            profile.BlackScreenTimeoutMs = Math.Clamp(profile.BlackScreenTimeoutMs, 1000, 60_000);
             profile.LoadingTimeoutMs = Math.Clamp(profile.LoadingTimeoutMs, 1000, 120_000);
             profile.NpcWaitMs = Math.Clamp(profile.NpcWaitMs, 100, 60_000);
             profile.SpotMenuRetryWaitMs = Math.Clamp(profile.SpotMenuRetryWaitMs, 100, 60_000);

@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.0.2 — Dibre a concorrência**
+**Versão 2.0.3 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -77,7 +77,7 @@ Exemplo: limite de `40%` executa a reação quando a vida ficar abaixo de aproxi
 Em **Rota de spots**, escolha **Parar após teleporte**. Quando o limite for atingido, o programa:
 
 1. clica no item Safe ou Random escolhido;
-2. confirma que a tela ficou preta e voltou;
+2. aguarda o tempo configurado após o teleporte;
 3. pausa somente aquela janela.
 
 ## Configurando spots
@@ -96,9 +96,9 @@ Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirm
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-O fluxo começa a procurar a tela preta imediatamente após o clique no teleporte, aguarda o carregamento, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
+O fluxo clica no teleporte, aguarda o tempo configurado, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
 
-Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, tela preta, carregamento, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
+Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, espera após o teleporte inicial, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
 
 ## Tempo da sessão
 

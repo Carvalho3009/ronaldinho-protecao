@@ -64,7 +64,7 @@ sealed class WindowCapture : IDisposable
         _session.StartCapture();
     }
 
-    public bool TryGetRegion(ScreenRegion region, out Bitmap bitmap, out string error, bool allowBlack = false)
+    public bool TryGetRegion(ScreenRegion region, out Bitmap bitmap, out string error)
     {
         bitmap = null!;
         error = "";
@@ -101,7 +101,7 @@ sealed class WindowCapture : IDisposable
             bitmap = _latest.Clone(source, PixelFormat.Format24bppRgb);
         }
 
-        if (allowBlack || Recognition.ContentPercent(bitmap) >= 1)
+        if (Recognition.ContentPercent(bitmap) >= 1)
             return true;
         bitmap.Dispose();
         bitmap = null!;
