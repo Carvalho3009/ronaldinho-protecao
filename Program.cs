@@ -5,6 +5,10 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        if (Updater.TryHandleHelperMode(args, out var helperExitCode))
+            return helperExitCode;
+        Updater.ScheduleCleanup(args);
+
         if (args.Contains("--visual-test", StringComparer.OrdinalIgnoreCase))
         {
             try

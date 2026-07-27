@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.2.0 — Dibre a concorrência**
+**Versão 2.2.1 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -35,6 +35,8 @@ Ao abrir, o programa consulta a versão mais recente publicada em
 [`Carvalho3009/ronaldinho-protecao`](https://github.com/Carvalho3009/ronaldinho-protecao/releases).
 Quando houver uma versão nova, escolha **Sim** para baixar, substituir o executável e reiniciar automaticamente.
 Também é possível usar **Verificar atualização** no topo da tela.
+
+A partir da versão 2.2.1, a instalação automática usa um helper interno do próprio Ronaldinho, sem PowerShell, comandos codificados ou scripts ocultos. A migração da 2.2.0 para a 2.2.1 deve ser feita manualmente uma única vez, pois o atualizador antigo pode ser bloqueado pelo antivírus.
 
 ## Configurando cada janela
 
