@@ -54,8 +54,6 @@ sealed class WindowProfile
     public ScreenRegion SpotOpenIconRegion { get; set; } = new();
     public byte[] SpotOpenIconReferencePng { get; set; } = [];
     public ClickPointConfig SpotOpenIconPoint { get; set; } = new();
-    public ScreenRegion NpcIconRegion { get; set; } = new();
-    public byte[] NpcIconReferencePng { get; set; } = [];
     public ClickPointConfig NpcIconPoint { get; set; } = new();
     public ClickPointConfig ConfirmTeleportPoint { get; set; } = new();
     public ClickPointConfig AutoPoint { get; set; } = new();
@@ -88,8 +86,6 @@ sealed class WindowProfile
                                         && SpotOpenIconRegion.IsConfigured
                                         && SpotOpenIconReferencePng.Length > 0
                                         && SpotOpenIconPoint.Configured
-                                        && NpcIconRegion.IsConfigured
-                                        && NpcIconReferencePng.Length > 0
                                         && NpcIconPoint.Configured
                                         && ConfirmTeleportPoint.Configured
                                         && AutoPoint.Configured
@@ -134,8 +130,6 @@ sealed class AppConfig
             profile.SpotOpenIconRegion ??= new ScreenRegion();
             profile.SpotOpenIconReferencePng ??= [];
             profile.SpotOpenIconPoint ??= new ClickPointConfig();
-            profile.NpcIconRegion ??= new ScreenRegion();
-            profile.NpcIconReferencePng ??= [];
             profile.NpcIconPoint ??= new ClickPointConfig();
             profile.ConfirmTeleportPoint ??= new ClickPointConfig();
             profile.AutoPoint ??= new ClickPointConfig();
@@ -210,16 +204,22 @@ static class ConfigStore
             }
             if (schemaVersion < 7)
             {
-                foreach (var profile in config.Windows)
+                var windows = document.RootElement.TryGetProperty(nameof(AppConfig.Windows), out var savedWindows)
+                    ? savedWindows
+                    : default;
+                for (var index = 0; index < config.Windows.Count; index++)
                 {
+                    var profile = config.Windows[index];
                     profile.SpotOpenIconRegion ??= new ScreenRegion();
                     profile.SpotOpenIconPoint ??= new ClickPointConfig();
-                    profile.NpcIconRegion ??= new ScreenRegion();
                     profile.NpcIconPoint ??= new ClickPointConfig();
                     if (profile.SpotOpenIconRegion.IsConfigured && !profile.SpotOpenIconPoint.Configured)
                         profile.SpotOpenIconPoint = Center(profile.SpotOpenIconRegion);
-                    if (profile.NpcIconRegion.IsConfigured && !profile.NpcIconPoint.Configured)
-                        profile.NpcIconPoint = Center(profile.NpcIconRegion);
+                    if (!profile.NpcIconPoint.Configured
+                        && windows.ValueKind == JsonValueKind.Array
+                        && index < windows.GetArrayLength()
+                        && TryCenter(windows[index], "NpcIconRegion", out var npcPoint))
+                        profile.NpcIconPoint = npcPoint;
                 }
                 warning = "Os ícones Abrir Spots e NPC agora usam pontos de clique. Confira as marcações na Configuração guiada.";
             }
@@ -252,4 +252,23 @@ static class ConfigStore
         Y = region.Y + region.Height / 2,
         Configured = true
     };
+
+    static bool TryCenter(JsonElement profile, string propertyName, out ClickPointConfig point)
+    {
+        point = new ClickPointConfig();
+        if (!profile.TryGetProperty(propertyName, out var region)
+            || !region.TryGetProperty(nameof(ScreenRegion.X), out var x)
+            || !region.TryGetProperty(nameof(ScreenRegion.Y), out var y)
+            || !region.TryGetProperty(nameof(ScreenRegion.Width), out var width)
+            || !region.TryGetProperty(nameof(ScreenRegion.Height), out var height)
+            || width.GetInt32() < 2 || height.GetInt32() < 2)
+            return false;
+        point = new ClickPointConfig
+        {
+            X = x.GetInt32() + width.GetInt32() / 2,
+            Y = y.GetInt32() + height.GetInt32() / 2,
+            Configured = true
+        };
+        return true;
+    }
 }

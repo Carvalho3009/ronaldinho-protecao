@@ -600,8 +600,6 @@ sealed class MainForm : Form
                           && ui.Profile.SpotOpenIconRegion.IsConfigured
                           && ui.SpotOpenIconReference is not null
                           && ui.Profile.SpotOpenIconPoint.Configured
-                          && ui.Profile.NpcIconRegion.IsConfigured
-                          && ui.NpcIconReference is not null
                           && ui.Profile.NpcIconPoint.Configured
                           && ui.Profile.ConfirmTeleportPoint.Configured
                           && ui.Profile.AutoPoint.Configured
@@ -2251,17 +2249,19 @@ sealed class MainForm : Form
                 ui.SetSpotOpenIconReference(bitmap);
             });
 
-    void SelectNpcIcon(ProfileUi ui) =>
-        SelectReferencePoint(
-            ui,
-            "Clique no ícone do NPC — Esc cancela",
-            (point, region, png, bitmap) =>
-            {
-                ui.Profile.NpcIconPoint = point;
-                ui.Profile.NpcIconRegion = region;
-                ui.Profile.NpcIconReferencePng = png;
-                ui.SetNpcIconReference(bitmap);
-            });
+    void SelectNpcIcon(ProfileUi ui)
+    {
+        if (!CanEdit() || !TrySelectPoint(ui, out var point))
+            return;
+        ui.Profile.NpcIconPoint = new ClickPointConfig
+        {
+            X = point.X,
+            Y = point.Y,
+            Configured = true
+        };
+        RefreshProfileUi(ui);
+        TrySave();
+    }
 
     void SelectReferencePoint(
         ProfileUi ui,
@@ -2394,6 +2394,9 @@ sealed class MainForm : Form
             Height = height
         };
     }
+
+    static bool OpenSpotIconFound(double similarity, decimal minimumSimilarity) =>
+        similarity >= (double)minimumSimilarity;
 
     void AddSpot(ProfileUi ui)
     {
@@ -2576,8 +2579,7 @@ sealed class MainForm : Form
                                                && ui.Profile.IsConfigured
                                                && (!ui.Profile.UsesSpotRotation
                                                    || (ui.SpotWindowReference is not null
-                                                       && ui.SpotOpenIconReference is not null
-                                                       && ui.NpcIconReference is not null))
+                                                       && ui.SpotOpenIconReference is not null))
                                                && ui.Window.SelectedItem is WindowChoice).ToList();
         if (candidates.Count == 0)
         {
@@ -2997,7 +2999,7 @@ sealed class MainForm : Form
                 return false;
             }
 
-            if (openSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
+            if (OpenSpotIconFound(openSimilarity, ui.Profile.SpotWindowMinimumSimilarity))
             {
                 if (!TryClickProfile(
                         ui,
@@ -3018,25 +3020,13 @@ sealed class MainForm : Form
                 continue;
             }
 
-            if (!TryMeasureReference(
+            SetProfileStatus(ui, "Reagindo", "Abrir Spots não encontrado; clicando no NPC...");
+            if (!TryClickProfile(
                     ui,
-                    ui.Profile.NpcIconRegion,
-                    ui.NpcIconReference,
-                    out var npcSimilarity,
-                    out error))
-            {
-                PauseProfile(ui, error);
+                    ui.Profile.NpcIconPoint.X,
+                    ui.Profile.NpcIconPoint.Y,
+                    "Ícone NPC"))
                 return false;
-            }
-            if (npcSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
-            {
-                if (!TryClickProfile(
-                        ui,
-                        ui.Profile.NpcIconPoint.X,
-                        ui.Profile.NpcIconPoint.Y,
-                        "Ícone NPC"))
-                    return false;
-            }
             await Task.Delay(ui.Profile.NpcWaitMs);
             if (!ui.Profile.ProtectionEnabled)
                 return false;
@@ -3235,8 +3225,7 @@ sealed class MainForm : Form
         if (!ui.Profile.IsConfigured
             || (ui.Profile.UsesSpotRotation
                 && (ui.SpotWindowReference is null
-                    || ui.SpotOpenIconReference is null
-                    || ui.NpcIconReference is null))
+                    || ui.SpotOpenIconReference is null))
             || ui.Window.SelectedItem is not WindowChoice)
         {
             MessageBox.Show(this, "Conclua a Configuração guiada antes de testar.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -3567,9 +3556,7 @@ sealed class MainForm : Form
                              && ui.SpotOpenIconReference is not null;
         ui.SpotMenuStatus.Text = openConfigured ? "✓ Ponto selecionado" : "Não configurado";
         ui.SpotMenuStatus.ForeColor = openConfigured ? Acid : Coral;
-        var npcConfigured = ui.Profile.NpcIconPoint.Configured
-                            && ui.Profile.NpcIconRegion.IsConfigured
-                            && ui.NpcIconReference is not null;
+        var npcConfigured = ui.Profile.NpcIconPoint.Configured;
         ui.NpcIconStatus.Text = npcConfigured ? "✓ Ponto selecionado" : "Não configurado";
         ui.NpcIconStatus.ForeColor = npcConfigured ? Acid : Coral;
         ui.ConfirmTeleportStatus.Text = ui.Profile.ConfirmTeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
@@ -3822,6 +3809,8 @@ sealed class MainForm : Form
         var iconRegion = ReferenceRegion(new Point(5, 5), new Size(100, 80));
         if (iconRegion.X != 0 || iconRegion.Y != 0 || iconRegion.Width != 48 || iconRegion.Height != 48)
             throw new InvalidOperationException("Falha na referência visual automática ao redor do ponto.");
+        if (!OpenSpotIconFound(80, 80) || OpenSpotIconFound(79.9, 80))
+            throw new InvalidOperationException("Falha na decisão entre Abrir Spots e NPC.");
         var nextSearch = DateTimeOffset.UnixEpoch.AddSeconds(BarSearchIntervalSeconds);
         if (IsBarSearchDue(nextSearch.AddMilliseconds(-1), nextSearch)
             || !IsBarSearchDue(nextSearch, nextSearch))
@@ -3855,8 +3844,6 @@ sealed class MainForm : Form
         profile.SpotOpenIconRegion = new ScreenRegion { Width = 10, Height = 10 };
         profile.SpotOpenIconReferencePng = [1];
         profile.SpotOpenIconPoint = new ClickPointConfig { Configured = true };
-        profile.NpcIconRegion = new ScreenRegion { Width = 10, Height = 10 };
-        profile.NpcIconReferencePng = [1];
         profile.NpcIconPoint = new ClickPointConfig { Configured = true };
         profile.ConfirmTeleportPoint = new ClickPointConfig { Configured = true };
         profile.AutoPoint = new ClickPointConfig { Configured = true };
@@ -3941,7 +3928,6 @@ sealed class MainForm : Form
         public Bitmap? StableCandidate { get; private set; }
         public Bitmap? SpotWindowReference { get; private set; }
         public Bitmap? SpotOpenIconReference { get; private set; }
-        public Bitmap? NpcIconReference { get; private set; }
         public WindowCapture? Capture { get; set; }
         public DateTimeOffset StableSince { get; set; }
         public DateTimeOffset RearmNotBefore { get; set; }
@@ -3999,7 +3985,6 @@ sealed class MainForm : Form
 
             SpotWindowReference = LoadReference(profile.SpotWindowReferencePng);
             SpotOpenIconReference = LoadReference(profile.SpotOpenIconReferencePng);
-            NpcIconReference = LoadReference(profile.NpcIconReferencePng);
         }
 
         public void SetStableCandidate(Bitmap bitmap)
@@ -4018,12 +4003,6 @@ sealed class MainForm : Form
         {
             SpotOpenIconReference?.Dispose();
             SpotOpenIconReference = new Bitmap(bitmap);
-        }
-
-        public void SetNpcIconReference(Bitmap bitmap)
-        {
-            NpcIconReference?.Dispose();
-            NpcIconReference = new Bitmap(bitmap);
         }
 
         public void ResetStableCandidate()
@@ -4062,8 +4041,6 @@ sealed class MainForm : Form
             SpotWindowReference = null;
             SpotOpenIconReference?.Dispose();
             SpotOpenIconReference = null;
-            NpcIconReference?.Dispose();
-            NpcIconReference = null;
             Preview.Image?.Dispose();
             Preview.Image = null;
         }

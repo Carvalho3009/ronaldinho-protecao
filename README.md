@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.0.3 — Dibre a concorrência**
+**Versão 2.0.4 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -96,7 +96,7 @@ Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirm
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-O fluxo clica no teleporte, aguarda o tempo configurado, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
+O fluxo clica no teleporte, aguarda o tempo configurado e procura **Abrir Spots**. Se encontrar, abre o menu e segue para a seleção do spot. Se não encontrar, clica diretamente no ponto **NPC**, aguarda e procura **Abrir Spots** novamente. Depois confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
 
 Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, espera após o teleporte inicial, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
 
