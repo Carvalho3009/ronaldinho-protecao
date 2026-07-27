@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.0.4 — Dibre a concorrência**
+**Versão 2.1.0 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -85,18 +85,19 @@ Em **Rota de spots**, escolha **Parar após teleporte**. Quando o limite for ati
 Em **Rota de spots**, escolha **Rotação de spots** e configure:
 
 1. **Menu de spots**: a área visual que confirma que o menu abriu.
-2. **Ícone Abrir spots**: o ponto exato onde o programa deve clicar.
-3. **Ícone NPC**: o ponto exato onde o programa deve clicar quando **Abrir spots** ainda não aparece.
-4. **Botão Teleportar**: o ponto do botão de confirmação.
-5. **Botão Auto**: o ponto acionado depois da espera no novo spot.
-6. **Marcar Safe**: obrigatório porque, ao terminar todos os ciclos, a próxima reação leva ao Safe e pausa a janela.
-7. Os spots ativos, sua ordem e o número de repetições da rota.
+2. **Seta minimapa**: a área visual da seta que indica quando o acesso direto ao menu está disponível.
+3. **Abrir spots**: o ponto exato onde o programa deve clicar quando a seta aparecer.
+4. **NPC**: o ponto exato onde o programa deve clicar quando a seta não aparecer.
+5. **Teleportar**: o ponto do botão de confirmação.
+6. **Auto**: o ponto acionado depois da espera no novo spot.
+7. **Marcar Safe**: obrigatório porque, ao terminar todos os ciclos, a próxima reação leva ao Safe e pausa a janela.
+8. Os spots ativos, sua ordem e o número de repetições da rota.
 
 Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirmação, clique no primeiro spot; o programa abrirá imediatamente a marcação seguinte. Continue clicando nos spots na ordem desejada e pressione `Esc` para concluir. Se `Esc` for pressionado antes do primeiro ponto, a rota anterior será mantida.
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-O fluxo clica no teleporte, aguarda o tempo configurado e procura **Abrir Spots**. Se encontrar, abre o menu e segue para a seleção do spot. Se não encontrar, clica diretamente no ponto **NPC**, aguarda e procura **Abrir Spots** novamente. Depois confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
+O fluxo clica no teleporte, aguarda o tempo configurado e procura a **seta do minimapa**. Se encontrar, clica em **Abrir Spots** e verifica se o menu abriu. Se o menu não abrir, volta a procurar a seta. Se a seta não aparecer, clica em **NPC**, aguarda o tempo configurado (3 segundos inicialmente) e volta a procurar a seta. Depois seleciona o spot, confirma o teleporte, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
 
 Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, espera após o teleporte inicial, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
 

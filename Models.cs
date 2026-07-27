@@ -51,8 +51,8 @@ sealed class WindowProfile
     public string ReactionMode { get; set; } = RotateSpots;
     public ScreenRegion SpotWindowRegion { get; set; } = new();
     public byte[] SpotWindowReferencePng { get; set; } = [];
-    public ScreenRegion SpotOpenIconRegion { get; set; } = new();
-    public byte[] SpotOpenIconReferencePng { get; set; } = [];
+    public ScreenRegion MinimapArrowRegion { get; set; } = new();
+    public byte[] MinimapArrowReferencePng { get; set; } = [];
     public ClickPointConfig SpotOpenIconPoint { get; set; } = new();
     public ClickPointConfig NpcIconPoint { get; set; } = new();
     public ClickPointConfig ConfirmTeleportPoint { get; set; } = new();
@@ -83,8 +83,8 @@ sealed class WindowProfile
                                     || (TeleportPoint.Configured
                                         && SpotWindowRegion.IsConfigured
                                         && SpotWindowReferencePng.Length > 0
-                                        && SpotOpenIconRegion.IsConfigured
-                                        && SpotOpenIconReferencePng.Length > 0
+                                        && MinimapArrowRegion.IsConfigured
+                                        && MinimapArrowReferencePng.Length > 0
                                         && SpotOpenIconPoint.Configured
                                         && NpcIconPoint.Configured
                                         && ConfirmTeleportPoint.Configured
@@ -94,7 +94,7 @@ sealed class WindowProfile
 
 sealed class AppConfig
 {
-    public int SchemaVersion { get; set; } = 7;
+    public int SchemaVersion { get; set; } = 8;
     public int CaptureIntervalMs { get; set; } = 300;
     public bool InitialSetupCompleted { get; set; }
     public int SetupProfileIndex { get; set; }
@@ -103,7 +103,7 @@ sealed class AppConfig
 
     public void Normalize()
     {
-        SchemaVersion = 7;
+        SchemaVersion = 8;
         CaptureIntervalMs = Math.Clamp(CaptureIntervalMs, 100, 2000);
         SetupProfileIndex = Math.Clamp(SetupProfileIndex, 0, 1);
         SetupStepId = string.IsNullOrWhiteSpace(SetupStepId) ? "window" : SetupStepId;
@@ -127,8 +127,8 @@ sealed class AppConfig
                 : WindowProfile.RotateSpots;
             profile.SpotWindowRegion ??= new ScreenRegion();
             profile.SpotWindowReferencePng ??= [];
-            profile.SpotOpenIconRegion ??= new ScreenRegion();
-            profile.SpotOpenIconReferencePng ??= [];
+            profile.MinimapArrowRegion ??= new ScreenRegion();
+            profile.MinimapArrowReferencePng ??= [];
             profile.SpotOpenIconPoint ??= new ClickPointConfig();
             profile.NpcIconPoint ??= new ClickPointConfig();
             profile.ConfirmTeleportPoint ??= new ClickPointConfig();
@@ -210,19 +210,21 @@ static class ConfigStore
                 for (var index = 0; index < config.Windows.Count; index++)
                 {
                     var profile = config.Windows[index];
-                    profile.SpotOpenIconRegion ??= new ScreenRegion();
                     profile.SpotOpenIconPoint ??= new ClickPointConfig();
                     profile.NpcIconPoint ??= new ClickPointConfig();
-                    if (profile.SpotOpenIconRegion.IsConfigured && !profile.SpotOpenIconPoint.Configured)
-                        profile.SpotOpenIconPoint = Center(profile.SpotOpenIconRegion);
+                    if (windows.ValueKind != JsonValueKind.Array || index >= windows.GetArrayLength())
+                        continue;
+                    if (!profile.SpotOpenIconPoint.Configured
+                        && TryCenter(windows[index], "SpotOpenIconRegion", out var openPoint))
+                        profile.SpotOpenIconPoint = openPoint;
                     if (!profile.NpcIconPoint.Configured
-                        && windows.ValueKind == JsonValueKind.Array
-                        && index < windows.GetArrayLength()
                         && TryCenter(windows[index], "NpcIconRegion", out var npcPoint))
                         profile.NpcIconPoint = npcPoint;
                 }
                 warning = "Os ícones Abrir Spots e NPC agora usam pontos de clique. Confira as marcações na Configuração guiada.";
             }
+            if (schemaVersion < 8)
+                warning = "O fluxo agora reconhece a seta do minimapa. Adicione essa referência visual na Configuração guiada.";
             config.Normalize();
             return config;
         }
@@ -245,13 +247,6 @@ static class ConfigStore
             File.Copy(FilePath, FilePath + ".bak", true);
         File.Move(temporary, FilePath, true);
     }
-
-    static ClickPointConfig Center(ScreenRegion region) => new()
-    {
-        X = region.X + region.Width / 2,
-        Y = region.Y + region.Height / 2,
-        Configured = true
-    };
 
     static bool TryCenter(JsonElement profile, string propertyName, out ClickPointConfig point)
     {

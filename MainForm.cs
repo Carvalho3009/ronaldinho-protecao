@@ -590,21 +590,21 @@ sealed class MainForm : Form
                 prefix + "route",
                 profileIndex,
                 "4. Defina o fluxo após teleportar",
-                "Escolha Rotação de spots ou Parar após teleporte. Para rotação, conclua as cinco marcações e cadastre ao menos um spot.",
+                "Escolha Rotação de spots ou Parar após teleporte. Para rotação, conclua as seis marcações e cadastre ao menos um spot.",
                 "SpotsModule",
                 false,
                 ui => ui.Profile.ProtectionEnabled,
                 ui => !ui.Profile.UsesSpotRotation
                       || (ui.Profile.SpotWindowRegion.IsConfigured
                           && ui.SpotWindowReference is not null
-                          && ui.Profile.SpotOpenIconRegion.IsConfigured
-                          && ui.SpotOpenIconReference is not null
+                          && ui.Profile.MinimapArrowRegion.IsConfigured
+                          && ui.MinimapArrowReference is not null
                           && ui.Profile.SpotOpenIconPoint.Configured
                           && ui.Profile.NpcIconPoint.Configured
                           && ui.Profile.ConfirmTeleportPoint.Configured
                           && ui.Profile.AutoPoint.Configured
                           && ui.Profile.Spots.Any(spot => spot.Enabled)),
-                "Conclua as marcações do menu, Abrir Spots, NPC, Teleportar e Auto."));
+                "Conclua as marcações do menu, seta do minimapa, Abrir Spots, NPC, Teleportar e Auto."));
             steps.Add(new SetupStep(
                 prefix + "session",
                 profileIndex,
@@ -1123,9 +1123,9 @@ sealed class MainForm : Form
         reactionMode.Items.AddRange(["ROTAÇÃO DE SPOTS", "PARAR APÓS TELEPORTE"]);
         reactionMode.SelectedIndex = profile.UsesSpotRotation ? 0 : 1;
 
-        var markers = new TableLayoutPanel { Name = "SpotsMarkerSettings", Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, Margin = Padding.Empty };
-        for (var index = 0; index < 5; index++)
-            markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+        var markers = new TableLayoutPanel { Name = "SpotsMarkerSettings", Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1, Margin = Padding.Empty };
+        for (var index = 0; index < 6; index++)
+            markers.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 6));
         markers.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var spotWindowLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
         var selectSpotWindow = MarkerButton("MENU DE SPOTS");
@@ -1134,38 +1134,46 @@ sealed class MainForm : Form
         spotWindowLine.Controls.Add(selectSpotWindow);
         spotWindowLine.Controls.Add(spotWindowStatus);
 
+        var minimapArrowLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
+        var selectMinimapArrow = MarkerButton("SETA MINIMAPA");
+        var minimapArrowStatus = StepStatus();
+        minimapArrowStatus.Margin = new Padding(3, 2, 3, 0);
+        minimapArrowLine.Controls.Add(selectMinimapArrow);
+        minimapArrowLine.Controls.Add(minimapArrowStatus);
+
         var spotMenuLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectSpotMenu = MarkerButton("ÍCONE ABRIR SPOTS");
+        var selectSpotMenu = MarkerButton("ABRIR SPOTS");
         var spotMenuStatus = StepStatus();
         spotMenuStatus.Margin = new Padding(3, 2, 3, 0);
         spotMenuLine.Controls.Add(selectSpotMenu);
         spotMenuLine.Controls.Add(spotMenuStatus);
 
         var npcIconLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectNpcIcon = MarkerButton("ÍCONE NPC");
+        var selectNpcIcon = MarkerButton("NPC");
         var npcIconStatus = StepStatus();
         npcIconStatus.Margin = new Padding(3, 2, 3, 0);
         npcIconLine.Controls.Add(selectNpcIcon);
         npcIconLine.Controls.Add(npcIconStatus);
 
         var confirmTeleportLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectConfirmTeleport = MarkerButton("BOTÃO TELEPORTAR");
+        var selectConfirmTeleport = MarkerButton("TELEPORTAR");
         var confirmTeleportStatus = StepStatus();
         confirmTeleportStatus.Margin = new Padding(3, 2, 3, 0);
         confirmTeleportLine.Controls.Add(selectConfirmTeleport);
         confirmTeleportLine.Controls.Add(confirmTeleportStatus);
 
         var autoLine = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
-        var selectAuto = MarkerButton("BOTÃO AUTO");
+        var selectAuto = MarkerButton("AUTO");
         var autoStatus = StepStatus();
         autoStatus.Margin = new Padding(3, 2, 3, 0);
         autoLine.Controls.Add(selectAuto);
         autoLine.Controls.Add(autoStatus);
         markers.Controls.Add(spotWindowLine, 0, 0);
-        markers.Controls.Add(spotMenuLine, 1, 0);
-        markers.Controls.Add(npcIconLine, 2, 0);
-        markers.Controls.Add(confirmTeleportLine, 3, 0);
-        markers.Controls.Add(autoLine, 4, 0);
+        markers.Controls.Add(minimapArrowLine, 1, 0);
+        markers.Controls.Add(spotMenuLine, 2, 0);
+        markers.Controls.Add(npcIconLine, 3, 0);
+        markers.Controls.Add(confirmTeleportLine, 4, 0);
+        markers.Controls.Add(autoLine, 5, 0);
         var markerTools = new TableLayoutPanel { Name = "SpotsMarkerTools", Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         markerTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
@@ -1405,6 +1413,7 @@ sealed class MainForm : Form
             safeTeleportStatus,
             randomTeleportStatus,
             spotWindowStatus,
+            minimapArrowStatus,
             spotMenuStatus,
             npcIconStatus,
             confirmTeleportStatus,
@@ -1487,6 +1496,7 @@ sealed class MainForm : Form
             TrySave();
         };
         selectSpotWindow.Click += (_, _) => SelectSpotWindow(ui);
+        selectMinimapArrow.Click += (_, _) => SelectMinimapArrow(ui);
         selectSpotMenu.Click += (_, _) => SelectSpotOpenIcon(ui);
         selectNpcIcon.Click += (_, _) => SelectNpcIcon(ui);
         selectConfirmTeleport.Click += (_, _) => SelectConfirmTeleport(ui);
@@ -2184,7 +2194,33 @@ sealed class MainForm : Form
         TrySave();
     }
 
-    void SelectSpotWindow(ProfileUi ui)
+    void SelectSpotWindow(ProfileUi ui) =>
+        SelectReferenceRegion(
+            ui,
+            "Arraste sobre uma parte fixa da janela de spots — Esc cancela",
+            (region, png, bitmap) =>
+            {
+                ui.Profile.SpotWindowRegion = region;
+                ui.Profile.SpotWindowReferencePng = png;
+                ui.SetSpotWindowReference(bitmap);
+                ui.SpotMatch.Text = "Semelhança atual: 100% (referência)";
+            });
+
+    void SelectMinimapArrow(ProfileUi ui) =>
+        SelectReferenceRegion(
+            ui,
+            "Arraste ao redor da seta do minimapa — Esc cancela",
+            (region, png, bitmap) =>
+            {
+                ui.Profile.MinimapArrowRegion = region;
+                ui.Profile.MinimapArrowReferencePng = png;
+                ui.SetMinimapArrowReference(bitmap);
+            });
+
+    void SelectReferenceRegion(
+        ProfileUi ui,
+        string instruction,
+        Action<ScreenRegion, byte[], Bitmap> save)
     {
         if (!CanEdit() || !TryGetTarget(ui, out var choice, out var bounds))
             return;
@@ -2198,7 +2234,7 @@ sealed class MainForm : Form
                 return;
             using var overlay = new RegionOverlay(
                 bounds,
-                instruction: "Arraste sobre uma parte fixa da janela de spots — Esc cancela");
+                instruction: instruction);
             if (overlay.ShowDialog() != DialogResult.OK)
                 return;
             selected = overlay.SelectedRegion;
@@ -2222,32 +2258,31 @@ sealed class MainForm : Form
         using (var stream = new MemoryStream())
         {
             captured.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-            ui.Profile.SpotWindowRegion = new ScreenRegion
+            save(new ScreenRegion
             {
                 X = selected.X,
                 Y = selected.Y,
                 Width = selected.Width,
                 Height = selected.Height
-            };
-            ui.Profile.SpotWindowReferencePng = stream.ToArray();
-            ui.SetSpotWindowReference(captured);
-            ui.SpotMatch.Text = "Semelhança atual: 100% (referência)";
+            }, stream.ToArray(), captured);
         }
         RefreshProfileUi(ui);
         TrySave();
     }
 
-    void SelectSpotOpenIcon(ProfileUi ui) =>
-        SelectReferencePoint(
-            ui,
-            "Clique no ícone Abrir Spots — Esc cancela",
-            (point, region, png, bitmap) =>
-            {
-                ui.Profile.SpotOpenIconPoint = point;
-                ui.Profile.SpotOpenIconRegion = region;
-                ui.Profile.SpotOpenIconReferencePng = png;
-                ui.SetSpotOpenIconReference(bitmap);
-            });
+    void SelectSpotOpenIcon(ProfileUi ui)
+    {
+        if (!CanEdit() || !TrySelectPoint(ui, out var point))
+            return;
+        ui.Profile.SpotOpenIconPoint = new ClickPointConfig
+        {
+            X = point.X,
+            Y = point.Y,
+            Configured = true
+        };
+        RefreshProfileUi(ui);
+        TrySave();
+    }
 
     void SelectNpcIcon(ProfileUi ui)
     {
@@ -2259,48 +2294,6 @@ sealed class MainForm : Form
             Y = point.Y,
             Configured = true
         };
-        RefreshProfileUi(ui);
-        TrySave();
-    }
-
-    void SelectReferencePoint(
-        ProfileUi ui,
-        string instruction,
-        Action<ClickPointConfig, ScreenRegion, byte[], Bitmap> save)
-    {
-        if (!CanEdit() || !TryGetTarget(ui, out var choice, out var bounds))
-            return;
-
-        Point selected = Point.Empty;
-        ScreenRegion? region = null;
-        Bitmap? captured = null;
-        Hide();
-        try
-        {
-            if (!NativeMethods.TryActivate(choice.Handle))
-                return;
-            using var overlay = new RegionOverlay(bounds, true, instruction);
-            if (overlay.ShowDialog() != DialogResult.OK)
-                return;
-            selected = overlay.SelectedPoint;
-            region = ReferenceRegion(selected, bounds.Size);
-            captured = Recognition.Capture(bounds, region);
-        }
-        finally
-        {
-            Show();
-            Activate();
-        }
-
-        if (captured is null || region is null)
-            return;
-        using (captured)
-        using (var stream = new MemoryStream())
-        {
-            captured.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-            save(new ClickPointConfig { X = selected.X, Y = selected.Y, Configured = true },
-                region, stream.ToArray(), captured);
-        }
         RefreshProfileUi(ui);
         TrySave();
     }
@@ -2333,6 +2326,8 @@ sealed class MainForm : Form
             regions.Add((ToRectangle(ui.Profile.HealthBar), "Barra de vida", Color.Yellow));
         if (ui.Profile.SpotWindowRegion.IsConfigured)
             regions.Add((ToRectangle(ui.Profile.SpotWindowRegion), "Janela de spots", Color.DeepSkyBlue));
+        if (ui.Profile.MinimapArrowRegion.IsConfigured)
+            regions.Add((ToRectangle(ui.Profile.MinimapArrowRegion), "Seta do minimapa", Color.Gold));
         var points = new List<(Point Point, string Label, Color Color)>();
         if (ui.Profile.TeleportPoint.Configured)
             points.Add((ToPoint(ui.Profile.TeleportPoint), "1 Safe", Color.Red));
@@ -2381,21 +2376,7 @@ sealed class MainForm : Form
 
     static Point ToPoint(ClickPointConfig point) => new(point.X, point.Y);
 
-    static ScreenRegion ReferenceRegion(Point point, Size clientSize)
-    {
-        const int size = 48;
-        var width = Math.Min(size, clientSize.Width);
-        var height = Math.Min(size, clientSize.Height);
-        return new ScreenRegion
-        {
-            X = Math.Clamp(point.X - width / 2, 0, clientSize.Width - width),
-            Y = Math.Clamp(point.Y - height / 2, 0, clientSize.Height - height),
-            Width = width,
-            Height = height
-        };
-    }
-
-    static bool OpenSpotIconFound(double similarity, decimal minimumSimilarity) =>
+    static bool MinimapArrowFound(double similarity, decimal minimumSimilarity) =>
         similarity >= (double)minimumSimilarity;
 
     void AddSpot(ProfileUi ui)
@@ -2579,7 +2560,7 @@ sealed class MainForm : Form
                                                && ui.Profile.IsConfigured
                                                && (!ui.Profile.UsesSpotRotation
                                                    || (ui.SpotWindowReference is not null
-                                                       && ui.SpotOpenIconReference is not null))
+                                                       && ui.MinimapArrowReference is not null))
                                                && ui.Window.SelectedItem is WindowChoice).ToList();
         if (candidates.Count == 0)
         {
@@ -2987,19 +2968,19 @@ sealed class MainForm : Form
     {
         for (var attempt = 1; attempt <= ui.Profile.TeleportRetryCount; attempt++)
         {
-            SetProfileStatus(ui, "Reagindo", $"Procurando Abrir Spots ({attempt}/{ui.Profile.TeleportRetryCount})...");
+            SetProfileStatus(ui, "Reagindo", $"Procurando seta do minimapa ({attempt}/{ui.Profile.TeleportRetryCount})...");
             if (!TryMeasureReference(
                     ui,
-                    ui.Profile.SpotOpenIconRegion,
-                    ui.SpotOpenIconReference,
-                    out var openSimilarity,
+                    ui.Profile.MinimapArrowRegion,
+                    ui.MinimapArrowReference,
+                    out var arrowSimilarity,
                     out var error))
             {
                 PauseProfile(ui, error);
                 return false;
             }
 
-            if (OpenSpotIconFound(openSimilarity, ui.Profile.SpotWindowMinimumSimilarity))
+            if (MinimapArrowFound(arrowSimilarity, ui.Profile.SpotWindowMinimumSimilarity))
             {
                 if (!TryClickProfile(
                         ui,
@@ -3020,7 +3001,7 @@ sealed class MainForm : Form
                 continue;
             }
 
-            SetProfileStatus(ui, "Reagindo", "Abrir Spots não encontrado; clicando no NPC...");
+            SetProfileStatus(ui, "Reagindo", "Seta do minimapa não encontrada; clicando no NPC...");
             if (!TryClickProfile(
                     ui,
                     ui.Profile.NpcIconPoint.X,
@@ -3225,7 +3206,7 @@ sealed class MainForm : Form
         if (!ui.Profile.IsConfigured
             || (ui.Profile.UsesSpotRotation
                 && (ui.SpotWindowReference is null
-                    || ui.SpotOpenIconReference is null))
+                    || ui.MinimapArrowReference is null))
             || ui.Window.SelectedItem is not WindowChoice)
         {
             MessageBox.Show(this, "Conclua a Configuração guiada antes de testar.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -3551,9 +3532,12 @@ sealed class MainForm : Form
             ? $"✓ {ui.Profile.SpotWindowRegion.Width} × {ui.Profile.SpotWindowRegion.Height}"
             : "Não configurado";
         ui.SpotWindowStatus.ForeColor = spotWindowConfigured ? Acid : Coral;
-        var openConfigured = ui.Profile.SpotOpenIconPoint.Configured
-                             && ui.Profile.SpotOpenIconRegion.IsConfigured
-                             && ui.SpotOpenIconReference is not null;
+        var arrowConfigured = ui.Profile.MinimapArrowRegion.IsConfigured && ui.MinimapArrowReference is not null;
+        ui.MinimapArrowStatus.Text = arrowConfigured
+            ? $"✓ {ui.Profile.MinimapArrowRegion.Width} × {ui.Profile.MinimapArrowRegion.Height}"
+            : "Não configurado";
+        ui.MinimapArrowStatus.ForeColor = arrowConfigured ? Acid : Coral;
+        var openConfigured = ui.Profile.SpotOpenIconPoint.Configured;
         ui.SpotMenuStatus.Text = openConfigured ? "✓ Ponto selecionado" : "Não configurado";
         ui.SpotMenuStatus.ForeColor = openConfigured ? Acid : Coral;
         var npcConfigured = ui.Profile.NpcIconPoint.Configured;
@@ -3806,11 +3790,8 @@ sealed class MainForm : Form
             throw new InvalidOperationException("Falha no limite do contador de sessão.");
         if (!IsActiveState(ProfileState.Searching) || IsActiveState(ProfileState.Error))
             throw new InvalidOperationException("Falha no estado de procura automática da barra.");
-        var iconRegion = ReferenceRegion(new Point(5, 5), new Size(100, 80));
-        if (iconRegion.X != 0 || iconRegion.Y != 0 || iconRegion.Width != 48 || iconRegion.Height != 48)
-            throw new InvalidOperationException("Falha na referência visual automática ao redor do ponto.");
-        if (!OpenSpotIconFound(80, 80) || OpenSpotIconFound(79.9, 80))
-            throw new InvalidOperationException("Falha na decisão entre Abrir Spots e NPC.");
+        if (!MinimapArrowFound(80, 80) || MinimapArrowFound(79.9, 80))
+            throw new InvalidOperationException("Falha na decisão entre seta do minimapa e NPC.");
         var nextSearch = DateTimeOffset.UnixEpoch.AddSeconds(BarSearchIntervalSeconds);
         if (IsBarSearchDue(nextSearch.AddMilliseconds(-1), nextSearch)
             || !IsBarSearchDue(nextSearch, nextSearch))
@@ -3841,8 +3822,8 @@ sealed class MainForm : Form
             throw new InvalidOperationException("O modo com spots deveria exigir a rota completa.");
         profile.SpotWindowRegion = new ScreenRegion { Width = 20, Height = 20 };
         profile.SpotWindowReferencePng = [1];
-        profile.SpotOpenIconRegion = new ScreenRegion { Width = 10, Height = 10 };
-        profile.SpotOpenIconReferencePng = [1];
+        profile.MinimapArrowRegion = new ScreenRegion { Width = 10, Height = 10 };
+        profile.MinimapArrowReferencePng = [1];
         profile.SpotOpenIconPoint = new ClickPointConfig { Configured = true };
         profile.NpcIconPoint = new ClickPointConfig { Configured = true };
         profile.ConfirmTeleportPoint = new ClickPointConfig { Configured = true };
@@ -3903,6 +3884,7 @@ sealed class MainForm : Form
         public Label SafeTeleportStatus { get; }
         public Label RandomTeleportStatus { get; }
         public Label SpotWindowStatus { get; }
+        public Label MinimapArrowStatus { get; }
         public Label SpotMenuStatus { get; }
         public Label NpcIconStatus { get; }
         public Label ConfirmTeleportStatus { get; }
@@ -3927,7 +3909,7 @@ sealed class MainForm : Form
         public bool UpdatingSpotChecks { get; set; }
         public Bitmap? StableCandidate { get; private set; }
         public Bitmap? SpotWindowReference { get; private set; }
-        public Bitmap? SpotOpenIconReference { get; private set; }
+        public Bitmap? MinimapArrowReference { get; private set; }
         public WindowCapture? Capture { get; set; }
         public DateTimeOffset StableSince { get; set; }
         public DateTimeOffset RearmNotBefore { get; set; }
@@ -3942,6 +3924,7 @@ sealed class MainForm : Form
             Label safeTeleportStatus,
             Label randomTeleportStatus,
             Label spotWindowStatus,
+            Label minimapArrowStatus,
             Label spotMenuStatus,
             Label npcIconStatus,
             Label confirmTeleportStatus,
@@ -3966,6 +3949,7 @@ sealed class MainForm : Form
             SafeTeleportStatus = safeTeleportStatus;
             RandomTeleportStatus = randomTeleportStatus;
             SpotWindowStatus = spotWindowStatus;
+            MinimapArrowStatus = minimapArrowStatus;
             SpotMenuStatus = spotMenuStatus;
             NpcIconStatus = npcIconStatus;
             ConfirmTeleportStatus = confirmTeleportStatus;
@@ -3984,7 +3968,7 @@ sealed class MainForm : Form
             RemainingTimeLabel = remainingTimeLabel;
 
             SpotWindowReference = LoadReference(profile.SpotWindowReferencePng);
-            SpotOpenIconReference = LoadReference(profile.SpotOpenIconReferencePng);
+            MinimapArrowReference = LoadReference(profile.MinimapArrowReferencePng);
         }
 
         public void SetStableCandidate(Bitmap bitmap)
@@ -3999,10 +3983,10 @@ sealed class MainForm : Form
             SpotWindowReference = new Bitmap(bitmap);
         }
 
-        public void SetSpotOpenIconReference(Bitmap bitmap)
+        public void SetMinimapArrowReference(Bitmap bitmap)
         {
-            SpotOpenIconReference?.Dispose();
-            SpotOpenIconReference = new Bitmap(bitmap);
+            MinimapArrowReference?.Dispose();
+            MinimapArrowReference = new Bitmap(bitmap);
         }
 
         public void ResetStableCandidate()
@@ -4039,8 +4023,8 @@ sealed class MainForm : Form
             DisposeImages();
             SpotWindowReference?.Dispose();
             SpotWindowReference = null;
-            SpotOpenIconReference?.Dispose();
-            SpotOpenIconReference = null;
+            MinimapArrowReference?.Dispose();
+            MinimapArrowReference = null;
             Preview.Image?.Dispose();
             Preview.Image = null;
         }

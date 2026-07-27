@@ -81,7 +81,7 @@ static class Program
                         .Any(name => activePage.Controls.Find(name, true).Single().Visible))
                     throw new InvalidOperationException("A navegação lateral não isolou o módulo de spots.");
                 AssertInside(reactionMode);
-                foreach (var text in new[] { "MENU DE SPOTS", "ÍCONE ABRIR SPOTS", "ÍCONE NPC", "BOTÃO TELEPORTAR", "BOTÃO AUTO" })
+                foreach (var text in new[] { "MENU DE SPOTS", "SETA MINIMAPA", "ABRIR SPOTS", "NPC", "TELEPORTAR", "AUTO" })
                     AssertInside(RequiredVisibleButton(form, text));
                 var spotsList = (CheckedListBox)RequiredVisible(form, "SpotsList");
                 if (spotsList.ClientSize.Height / spotsList.ItemHeight < 5)
