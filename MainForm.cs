@@ -11,6 +11,19 @@ sealed class MainForm : Form
     static readonly Color Acid = Color.FromArgb(168, 255, 22);
     static readonly Color Coral = Color.FromArgb(255, 101, 71);
     static readonly Color Water = Color.FromArgb(99, 185, 243);
+    static readonly (string Title, string Resource)[] SetupReferences =
+    [
+        ("1/10 • Seta do minimapa", "guide-01-minimap-arrow.png"),
+        ("2/10 • Ícone do NPC", "guide-02-npc-icon.png"),
+        ("3/10 • Tela onde aparece o teleporte", "guide-03-teleport-window.png"),
+        ("4/10 • Botão Teleportar", "guide-04-teleport-button.png"),
+        ("5/10 • Ícone Abrir menu de Spot", "guide-05-open-spots-icon.png"),
+        ("6/10 • Menu de Spot", "guide-06-spots-menu.png"),
+        ("7/10 • Marcação de spot", "guide-07-spot-marker.png"),
+        ("8/10 • Ícone Auto", "guide-08-auto-icon.png"),
+        ("9/10 • Random", "guide-09-random.png"),
+        ("10/10 • Safe", "guide-10-safe.png")
+    ];
     readonly AppConfig _config;
     readonly List<ProfileUi> _profiles = [];
     readonly Dictionary<WindowProfile, OverviewUi> _overviews = [];
@@ -22,6 +35,8 @@ sealed class MainForm : Form
     readonly Label _setupProgress = new();
     readonly Label _setupTitle = new();
     readonly Label _setupInstruction = new();
+    readonly PictureBox _setupReference = new();
+    readonly Label _setupReferenceTitle = new();
     readonly Button _setupBack = new();
     readonly Button _setupSkip = new();
     readonly Button _setupNext = new();
@@ -29,6 +44,7 @@ sealed class MainForm : Form
     Action<string>? _openSection;
     List<SetupStep> _setupSteps = [];
     int _setupStepIndex;
+    int _setupReferenceIndex;
     bool _running;
     bool _busy;
     bool _loading;
@@ -65,6 +81,9 @@ sealed class MainForm : Form
         {
             _timer.Stop();
             TrySave();
+            var setupImage = _setupReference.Image;
+            _setupReference.Image = null;
+            setupImage?.Dispose();
             foreach (var profile in _profiles)
                 profile.Dispose();
         };
@@ -327,7 +346,7 @@ sealed class MainForm : Form
                 SelectNavigation(button);
                 if (target == "SetupGuide")
                 {
-                    BeginSetupGuide();
+                    BeginSetupGuide(selectedPage);
                     return;
                 }
                 var activePage = pages[selectedPage];
@@ -390,11 +409,13 @@ sealed class MainForm : Form
             _setupGuide.BorderColor = Gold;
             _setupGuide.Visible = false;
 
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2 };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            _setupProgress.Name = "SetupProgress";
             _setupProgress.AutoSize = true;
             _setupProgress.ForeColor = Gold;
             _setupProgress.Font = new Font("Arial Narrow", 9F, FontStyle.Bold);
@@ -407,6 +428,41 @@ sealed class MainForm : Form
             var copy = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
             copy.Controls.Add(_setupTitle);
             copy.Controls.Add(_setupInstruction);
+            var reference = new TableLayoutPanel
+            {
+                Name = "SetupReference",
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 2,
+                Margin = new Padding(8, 0, 8, 0)
+            };
+            reference.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
+            reference.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            reference.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
+            reference.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            reference.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            _setupReference.Name = "SetupReferenceImage";
+            _setupReference.Dock = DockStyle.Fill;
+            _setupReference.SizeMode = PictureBoxSizeMode.Zoom;
+            _setupReference.BackColor = Color.FromArgb(7, 9, 9);
+            _setupReference.Cursor = Cursors.Hand;
+            _setupReference.Click += (_, _) => ShowSetupReferencePreview();
+            var previousReference = SmallButton("‹");
+            var nextReference = SmallButton("›");
+            previousReference.Name = "PreviousSetupReference";
+            nextReference.Name = "NextSetupReference";
+            previousReference.Click += (_, _) => MoveSetupReference(-1);
+            nextReference.Click += (_, _) => MoveSetupReference(1);
+            _setupReferenceTitle.Name = "SetupReferenceTitle";
+            _setupReferenceTitle.Dock = DockStyle.Fill;
+            _setupReferenceTitle.TextAlign = ContentAlignment.MiddleCenter;
+            _setupReferenceTitle.ForeColor = Gold;
+            _setupReferenceTitle.Font = new Font("Arial Narrow", 8.5F, FontStyle.Bold);
+            reference.Controls.Add(_setupReferenceTitle, 0, 0);
+            reference.SetColumnSpan(_setupReferenceTitle, 3);
+            reference.Controls.Add(previousReference, 0, 1);
+            reference.Controls.Add(_setupReference, 1, 1);
+            reference.Controls.Add(nextReference, 2, 1);
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right };
             _setupBack.Text = "← VOLTAR";
             _setupSkip.Text = "PULAR";
@@ -425,9 +481,12 @@ sealed class MainForm : Form
             _setupNext.Click += (_, _) => MoveSetup(1);
             close.Click += (_, _) => CloseSetupGuide();
             layout.Controls.Add(_setupProgress, 0, 0);
+            layout.SetColumnSpan(_setupProgress, 3);
             layout.Controls.Add(copy, 0, 1);
-            layout.Controls.Add(buttons, 1, 1);
+            layout.Controls.Add(reference, 1, 1);
+            layout.Controls.Add(buttons, 2, 1);
             _setupGuide.Controls.Add(layout);
+            ShowSetupReference();
         }
 
         Panel ActiveViewport() => pages[selectedPage].Controls.Find("Viewport", true).OfType<Panel>().First();
@@ -532,7 +591,7 @@ sealed class MainForm : Form
         }
     }
 
-    void BeginSetupGuide()
+    void BeginSetupGuide(int? profileIndex = null)
     {
         if (_running)
         {
@@ -541,9 +600,11 @@ sealed class MainForm : Form
             return;
         }
         _setupSteps = BuildSetupSteps();
-        _setupStepIndex = Math.Max(0, _setupSteps.FindIndex(step => step.Id == _config.SetupStepId));
+        _setupStepIndex = profileIndex is int selected
+            ? Math.Max(0, _setupSteps.FindIndex(step => step.ProfileIndex == selected))
+            : Math.Max(0, _setupSteps.FindIndex(step => step.Id == _config.SetupStepId));
         if (_setupGuide.Parent is TableLayoutPanel content)
-            content.RowStyles[2].Height = 140;
+            content.RowStyles[2].Height = 110;
         _setupGuide.Visible = true;
         ApplySetupStep();
     }
@@ -700,6 +761,46 @@ sealed class MainForm : Form
         if (_setupGuide.Parent is TableLayoutPanel content)
             content.RowStyles[2].Height = 0;
         TrySave();
+    }
+
+    void MoveSetupReference(int direction)
+    {
+        _setupReferenceIndex = (_setupReferenceIndex + direction + SetupReferences.Length) % SetupReferences.Length;
+        ShowSetupReference();
+    }
+
+    void ShowSetupReference()
+    {
+        var reference = SetupReferences[_setupReferenceIndex];
+        var previous = _setupReference.Image;
+        _setupReference.Image = LoadEmbeddedImage(reference.Resource);
+        previous?.Dispose();
+        _setupReferenceTitle.Text = reference.Title;
+    }
+
+    void ShowSetupReferencePreview()
+    {
+        var reference = SetupReferences[_setupReferenceIndex];
+        using var image = LoadEmbeddedImage(reference.Resource);
+        if (image is null)
+            return;
+        using var dialog = new Form
+        {
+            Text = reference.Title,
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(Math.Min(1000, Math.Max(420, image.Width)),
+                Math.Min(720, Math.Max(300, image.Height))),
+            MinimumSize = new Size(420, 300),
+            BackColor = Ink
+        };
+        dialog.Controls.Add(new PictureBox
+        {
+            Dock = DockStyle.Fill,
+            Image = image,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Ink
+        });
+        dialog.ShowDialog(this);
     }
 
     Control BuildOverviewCard(ProfileUi ui)
@@ -1711,10 +1812,12 @@ sealed class MainForm : Form
         Padding = new Padding(8, 0, 0, 0)
     };
 
-    static Image? LoadBrandLogo()
+    static Image? LoadBrandLogo() => LoadEmbeddedImage("ronaldinho-wordmark-gold.png");
+
+    static Image? LoadEmbeddedImage(string fileName)
     {
         using var stream = typeof(MainForm).Assembly.GetManifestResourceStream(
-            "ControlarTela.Assets.ronaldinho-wordmark-gold.png");
+            $"ControlarTela.Assets.{fileName}");
         return stream is null ? null : new Bitmap(stream);
     }
 
@@ -2033,7 +2136,9 @@ sealed class MainForm : Form
 
     void RefreshWindows()
     {
-        var choices = NativeMethods.ListWindows();
+        var choices = NativeMethods.ListWindows()
+            .Where(choice => IsRfOnlineNextWindow(choice.Title))
+            .ToList();
         _loading = true;
         try
         {
@@ -2056,8 +2161,11 @@ sealed class MainForm : Form
         }
         foreach (var ui in _profiles)
             RefreshOverview(ui);
-        SetStatus($"{choices.Count} janelas encontradas.");
+        SetStatus($"{choices.Count} janelas RF Online Next encontradas.");
     }
+
+    static bool IsRfOnlineNextWindow(string title) =>
+        title.Contains("RF Online Next", StringComparison.OrdinalIgnoreCase);
 
     void SelectHealthBar(ProfileUi ui)
     {
@@ -3790,6 +3898,20 @@ sealed class MainForm : Form
             throw new InvalidOperationException("Falha no limite do contador de sessão.");
         if (!IsActiveState(ProfileState.Searching) || IsActiveState(ProfileState.Error))
             throw new InvalidOperationException("Falha no estado de procura automática da barra.");
+        if (!IsRfOnlineNextWindow("RF Online Next")
+            || !IsRfOnlineNextWindow("Personagem • RF ONLINE NEXT")
+            || IsRfOnlineNextWindow("Outra janela"))
+            throw new InvalidOperationException("Falha no filtro de janelas RF Online Next.");
+        if (SetupReferences.Length != 10
+            || !SetupReferences[0].Title.Contains("Seta do minimapa", StringComparison.Ordinal)
+            || !SetupReferences[^1].Title.Contains("Safe", StringComparison.Ordinal))
+            throw new InvalidOperationException("Falha na ordem das referências da Configuração guiada.");
+        foreach (var reference in SetupReferences)
+        {
+            using var image = LoadEmbeddedImage(reference.Resource);
+            if (image is null)
+                throw new InvalidOperationException($"Referência visual ausente: {reference.Title}.");
+        }
         if (!MinimapArrowFound(80, 80) || MinimapArrowFound(79.9, 80))
             throw new InvalidOperationException("Falha na decisão entre seta do minimapa e NPC.");
         var nextSearch = DateTimeOffset.UnixEpoch.AddSeconds(BarSearchIntervalSeconds);

@@ -9,12 +9,13 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Ronaldinho</AssemblyName>
-    <Version>2.1.0</Version>
+    <Version>2.2.0</Version>
     <DefaultItemExcludes>$(DefaultItemExcludes);.tmp\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\ronaldinho-wordmark-gold.png" />
+    <EmbeddedResource Include="Assets\guide-*.png" />
   </ItemGroup>
 
 </Project>

@@ -122,9 +122,23 @@ static class Program
                 var viewport = RequiredVisible(form, "Viewport");
                 if (advancedGroup.Width < viewport.ClientSize.Width - 80)
                     throw new InvalidOperationException("As opções avançadas foram comprimidas horizontalmente.");
+                FindAll(form).OfType<Button>().First(button => button.Text.Trim() == "JANELA 2").PerformClick();
+                Application.DoEvents();
                 FindAll(form).OfType<Button>().First(button => button.Text.Contains("CONFIGURAÇÃO GUIADA")).PerformClick();
                 Application.DoEvents();
                 AssertInside(RequiredVisible(form, "SetupGuide"));
+                var setupProgress = (Label)RequiredVisible(form, "SetupProgress");
+                if (!setupProgress.Text.Contains("JANELA 2", StringComparison.Ordinal))
+                    throw new InvalidOperationException("A Configuração guiada não iniciou na segunda janela selecionada.");
+                var setupReference = (PictureBox)RequiredVisible(form, "SetupReferenceImage");
+                if (setupReference.Image is null)
+                    throw new InvalidOperationException("A primeira referência visual do guia não foi carregada.");
+                if (!((Label)RequiredVisible(form, "SetupReferenceTitle")).Text.StartsWith("1/10", StringComparison.Ordinal))
+                    throw new InvalidOperationException("As referências visuais do guia estão fora de ordem.");
+                ((Button)RequiredVisible(form, "NextSetupReference")).PerformClick();
+                Application.DoEvents();
+                if (!((Label)RequiredVisible(form, "SetupReferenceTitle")).Text.StartsWith("2/10", StringComparison.Ordinal))
+                    throw new InvalidOperationException("A navegação das referências visuais não avançou.");
                 return 0;
             }
             catch (Exception exception)

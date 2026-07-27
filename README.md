@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.1.0 — Dibre a concorrência**
+**Versão 2.2.0 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -21,7 +21,7 @@ Programa portátil para Windows que monitora até duas janelas de forma independ
 2. Abra `Ronaldinho.exe`.
 3. Confirme a solicitação de administrador do Windows.
 4. Se o SmartScreen avisar que o arquivo não é reconhecido, confira se o arquivo veio de uma fonte confiável. O programa não possui assinatura digital.
-5. Abra a janela do jogo ou programa que será monitorado.
+5. Abra as janelas do RF Online Next que serão monitoradas.
 6. No ControlarTela, clique em **Atualizar janelas**.
 7. Na primeira execução, siga a **Configuração guiada**. Ela também pode ser reaberta pelo menu lateral.
 
@@ -42,11 +42,13 @@ Repita estes passos nas abas **Janela 1** e **Janela 2** que desejar usar.
 
 ### 1. Escolha a janela
 
-1. Clique em **Janela** no menu lateral e selecione a janela correta na lista.
+1. Clique em **Janela** no menu lateral e selecione a janela correta na lista. Somente títulos contendo **RF Online Next** são exibidos.
 2. Ative **Proteção ativa** para monitorá-la.
 3. Use **Segundo plano** para manter a captura ativa com a janela coberta. No momento de cada clique, o Ronaldinho recupera o foco do jogo para garantir o comando.
 
 A proteção pode ser ativada ou desativada individualmente durante a sessão. Desativar uma janela preserva o tempo e a posição atual da sequência; a outra continua funcionando.
+
+A **Configuração guiada** usa a aba selecionada como ponto de partida. Iniciada na **Janela 1**, ela segue para a **Janela 2**; iniciada na **Janela 2**, configura diretamente o segundo perfil. O guia também inclui dez referências visuais navegáveis, da seta do minimapa ao item Safe.
 
 ### 2. Marque a barra de vida cheia
 
