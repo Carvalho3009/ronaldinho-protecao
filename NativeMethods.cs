@@ -18,10 +18,6 @@ static class NativeMethods
     const uint MouseLeftUp = 0x0004;
     const uint MouseVirtualDesk = 0x4000;
     const uint MouseAbsolute = 0x8000;
-    const uint WindowMessageMouseMove = 0x0200;
-    const uint WindowMessageLeftButtonDown = 0x0201;
-    const uint WindowMessageLeftButtonUp = 0x0202;
-    const uint MouseKeyLeftButton = 0x0001;
     const uint GetAncestorRoot = 2;
     const uint ExtendedFrameBounds = 9;
     const int VirtualScreenLeft = 76;
@@ -68,6 +64,21 @@ static class NativeMethods
     static extern bool SetForegroundWindow(nint handle);
 
     [DllImport("user32.dll")]
+    static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    static extern bool BringWindowToTop(nint handle);
+
+    [DllImport("user32.dll")]
+    static extern nint SetFocus(nint handle);
+
+    [DllImport("user32.dll")]
+    static extern bool AttachThreadInput(uint threadId, uint attachToThreadId, bool attach);
+
+    [DllImport("kernel32.dll")]
+    static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
     static extern uint SendInput(uint count, INPUT[] inputs, int size);
 
     [DllImport("user32.dll")]
@@ -78,9 +89,6 @@ static class NativeMethods
 
     [DllImport("user32.dll")]
     static extern nint GetAncestor(nint handle, uint flags);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    static extern bool PostMessage(nint handle, uint message, nint wParam, nint lParam);
 
     public static List<WindowChoice> ListWindows()
     {
@@ -185,10 +193,33 @@ static class NativeMethods
 
     public static bool TryActivate(nint handle)
     {
-        if (!IsWindow(handle) || IsIconic(handle) || !SetForegroundWindow(handle))
+        if (!IsWindow(handle) || IsIconic(handle))
             return false;
+        var currentThread = GetCurrentThreadId();
+        var targetThread = GetWindowThreadProcessId(handle, out _);
+        var foreground = GetForegroundWindow();
+        var foregroundThread = foreground == 0 ? 0 : GetWindowThreadProcessId(foreground, out _);
+        var attachedTarget = targetThread != 0 && targetThread != currentThread
+                             && AttachThreadInput(currentThread, targetThread, true);
+        var attachedForeground = foregroundThread != 0
+                                 && foregroundThread != currentThread
+                                 && foregroundThread != targetThread
+                                 && AttachThreadInput(currentThread, foregroundThread, true);
+        try
+        {
+            BringWindowToTop(handle);
+            SetForegroundWindow(handle);
+            SetFocus(handle);
+        }
+        finally
+        {
+            if (attachedForeground)
+                AttachThreadInput(currentThread, foregroundThread, false);
+            if (attachedTarget)
+                AttachThreadInput(currentThread, targetThread, false);
+        }
         Thread.Sleep(150);
-        return true;
+        return GetForegroundWindow() == handle;
     }
 
     public static bool TryClick(nint handle, int clientX, int clientY, out string error)
@@ -249,35 +280,8 @@ static class NativeMethods
         return true;
     }
 
-    public static bool TryBackgroundClick(nint handle, int clientX, int clientY, out string error)
-    {
-        error = "";
-        if (!IsWindow(handle) || !GetClientRect(handle, out var client)
-            || clientX < 0 || clientY < 0
-            || clientX >= client.Right - client.Left
-            || clientY >= client.Bottom - client.Top)
-        {
-            error = "janela indisponível ou ponto fora da área útil";
-            return false;
-        }
-
-        var point = PackClientPoint(clientX, clientY);
-        if (!PostMessage(handle, WindowMessageMouseMove, 0, point)
-            || !PostMessage(handle, WindowMessageLeftButtonDown, (nint)MouseKeyLeftButton, point))
-        {
-            error = $"Windows recusou a mensagem (erro {Marshal.GetLastWin32Error()})";
-            return false;
-        }
-        Thread.Sleep(80);
-        if (!PostMessage(handle, WindowMessageLeftButtonUp, 0, point))
-        {
-            error = $"Windows recusou a soltura do botão (erro {Marshal.GetLastWin32Error()})";
-            return false;
-        }
-        return true;
-    }
-
-    static nint PackClientPoint(int x, int y) => unchecked((nint)((y << 16) | (x & 0xFFFF)));
+    public static bool TryBackgroundClick(nint handle, int clientX, int clientY, out string error) =>
+        TryClick(handle, clientX, clientY, out error);
 
     static int NormalizeAbsolute(int value, int origin, int size) =>
         (int)Math.Round(Math.Clamp((value - origin) / (double)(size - 1), 0, 1) * 65535);
@@ -300,8 +304,7 @@ static class NativeMethods
             throw new InvalidOperationException("Falha ao localizar a área cliente na captura da janela.");
         if (NormalizeAbsolute(-1920, -1920, 3840) != 0
             || NormalizeAbsolute(1919, -1920, 3840) != 65535
-            || NormalizeAbsolute(0, -1920, 3840) is < 32770 or > 32776
-            || (long)PackClientPoint(123, 456) != (456L << 16 | 123))
+            || NormalizeAbsolute(0, -1920, 3840) is < 32770 or > 32776)
             throw new InvalidOperationException("Falha ao normalizar coordenadas do desktop virtual.");
     }
 

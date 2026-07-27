@@ -599,8 +599,10 @@ sealed class MainForm : Form
                           && ui.SpotWindowReference is not null
                           && ui.Profile.SpotOpenIconRegion.IsConfigured
                           && ui.SpotOpenIconReference is not null
+                          && ui.Profile.SpotOpenIconPoint.Configured
                           && ui.Profile.NpcIconRegion.IsConfigured
                           && ui.NpcIconReference is not null
+                          && ui.Profile.NpcIconPoint.Configured
                           && ui.Profile.ConfirmTeleportPoint.Configured
                           && ui.Profile.AutoPoint.Configured
                           && ui.Profile.Spots.Any(spot => spot.Enabled)),
@@ -2244,53 +2246,50 @@ sealed class MainForm : Form
     }
 
     void SelectSpotOpenIcon(ProfileUi ui) =>
-        SelectReferenceRegion(
+        SelectReferencePoint(
             ui,
-            "Arraste exatamente sobre o ícone Abrir Spots — Esc cancela",
-            (region, png, bitmap) =>
+            "Clique no ícone Abrir Spots — Esc cancela",
+            (point, region, png, bitmap) =>
             {
+                ui.Profile.SpotOpenIconPoint = point;
                 ui.Profile.SpotOpenIconRegion = region;
                 ui.Profile.SpotOpenIconReferencePng = png;
                 ui.SetSpotOpenIconReference(bitmap);
             });
 
     void SelectNpcIcon(ProfileUi ui) =>
-        SelectReferenceRegion(
+        SelectReferencePoint(
             ui,
-            "Arraste exatamente sobre o ícone do NPC — Esc cancela",
-            (region, png, bitmap) =>
+            "Clique no ícone do NPC — Esc cancela",
+            (point, region, png, bitmap) =>
             {
+                ui.Profile.NpcIconPoint = point;
                 ui.Profile.NpcIconRegion = region;
                 ui.Profile.NpcIconReferencePng = png;
                 ui.SetNpcIconReference(bitmap);
             });
 
-    void SelectReferenceRegion(
+    void SelectReferencePoint(
         ProfileUi ui,
         string instruction,
-        Action<ScreenRegion, byte[], Bitmap> save)
+        Action<ClickPointConfig, ScreenRegion, byte[], Bitmap> save)
     {
         if (!CanEdit() || !TryGetTarget(ui, out var choice, out var bounds))
             return;
 
-        Rectangle selected = Rectangle.Empty;
+        Point selected = Point.Empty;
+        ScreenRegion? region = null;
         Bitmap? captured = null;
         Hide();
         try
         {
             if (!NativeMethods.TryActivate(choice.Handle))
                 return;
-            using var overlay = new RegionOverlay(bounds, instruction: instruction);
+            using var overlay = new RegionOverlay(bounds, true, instruction);
             if (overlay.ShowDialog() != DialogResult.OK)
                 return;
-            selected = overlay.SelectedRegion;
-            var region = new ScreenRegion
-            {
-                X = selected.X,
-                Y = selected.Y,
-                Width = selected.Width,
-                Height = selected.Height
-            };
+            selected = overlay.SelectedPoint;
+            region = ReferenceRegion(selected, bounds.Size);
             captured = Recognition.Capture(bounds, region);
         }
         finally
@@ -2299,19 +2298,14 @@ sealed class MainForm : Form
             Activate();
         }
 
-        if (captured is null)
+        if (captured is null || region is null)
             return;
         using (captured)
         using (var stream = new MemoryStream())
         {
             captured.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-            save(new ScreenRegion
-            {
-                X = selected.X,
-                Y = selected.Y,
-                Width = selected.Width,
-                Height = selected.Height
-            }, stream.ToArray(), captured);
+            save(new ClickPointConfig { X = selected.X, Y = selected.Y, Configured = true },
+                region, stream.ToArray(), captured);
         }
         RefreshProfileUi(ui);
         TrySave();
@@ -2345,16 +2339,15 @@ sealed class MainForm : Form
             regions.Add((ToRectangle(ui.Profile.HealthBar), "Barra de vida", Color.Yellow));
         if (ui.Profile.SpotWindowRegion.IsConfigured)
             regions.Add((ToRectangle(ui.Profile.SpotWindowRegion), "Janela de spots", Color.DeepSkyBlue));
-        if (ui.Profile.SpotOpenIconRegion.IsConfigured)
-            regions.Add((ToRectangle(ui.Profile.SpotOpenIconRegion), "Abrir spots", Color.Orange));
-        if (ui.Profile.NpcIconRegion.IsConfigured)
-            regions.Add((ToRectangle(ui.Profile.NpcIconRegion), "NPC", Color.MediumPurple));
-
         var points = new List<(Point Point, string Label, Color Color)>();
         if (ui.Profile.TeleportPoint.Configured)
             points.Add((ToPoint(ui.Profile.TeleportPoint), "1 Safe", Color.Red));
         if (ui.Profile.RandomTeleportPoint.Configured)
             points.Add((ToPoint(ui.Profile.RandomTeleportPoint), "1 Random", Color.Magenta));
+        if (ui.Profile.SpotOpenIconPoint.Configured)
+            points.Add((ToPoint(ui.Profile.SpotOpenIconPoint), "2 Abrir spots", Color.Orange));
+        if (ui.Profile.NpcIconPoint.Configured)
+            points.Add((ToPoint(ui.Profile.NpcIconPoint), "3 NPC", Color.MediumPurple));
         for (var index = 0; index < ui.Profile.Spots.Count; index++)
             points.Add((new Point(ui.Profile.Spots[index].X, ui.Profile.Spots[index].Y),
                 $"4.{index + 1} {ui.Profile.Spots[index].Name}{(ui.Profile.Spots[index].Enabled ? "" : " (desativado)")}",
@@ -2393,6 +2386,20 @@ sealed class MainForm : Form
         new(region.X, region.Y, region.Width, region.Height);
 
     static Point ToPoint(ClickPointConfig point) => new(point.X, point.Y);
+
+    static ScreenRegion ReferenceRegion(Point point, Size clientSize)
+    {
+        const int size = 48;
+        var width = Math.Min(size, clientSize.Width);
+        var height = Math.Min(size, clientSize.Height);
+        return new ScreenRegion
+        {
+            X = Math.Clamp(point.X - width / 2, 0, clientSize.Width - width),
+            Y = Math.Clamp(point.Y - height / 2, 0, clientSize.Height - height),
+            Width = width,
+            Height = height
+        };
+    }
 
     void AddSpot(ProfileUi ui)
     {
@@ -2977,11 +2984,13 @@ sealed class MainForm : Form
             if (!TryClickProfile(ui, teleport.X, teleport.Y, name))
                 return false;
 
-            if (!await WaitForBlackStateAsync(ui, true, ui.Profile.BlackScreenTimeoutMs))
+            var blackDeadline = DateTimeOffset.Now.AddMilliseconds(ui.Profile.BlackScreenTimeoutMs);
+            if (!await WaitForBlackStateAsync(ui, true, blackDeadline))
                 continue;
 
             SetProfileStatus(ui, "Aguardando", "Tela preta detectada; aguardando o destino carregar.");
-            if (await WaitForBlackStateAsync(ui, false, ui.Profile.LoadingTimeoutMs))
+            var loadingDeadline = DateTimeOffset.Now.AddMilliseconds(ui.Profile.LoadingTimeoutMs);
+            if (await WaitForBlackStateAsync(ui, false, loadingDeadline))
                 return true;
 
             PauseProfile(ui, $"A imagem não voltou em {ui.Profile.LoadingTimeoutMs / 1000d:0.#} s.");
@@ -3009,8 +3018,11 @@ sealed class MainForm : Form
 
             if (openSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
             {
-                var point = Center(ui.Profile.SpotOpenIconRegion);
-                if (!TryClickProfile(ui, point.X, point.Y, "Ícone Abrir Spots"))
+                if (!TryClickProfile(
+                        ui,
+                        ui.Profile.SpotOpenIconPoint.X,
+                        ui.Profile.SpotOpenIconPoint.Y,
+                        "Ícone Abrir Spots"))
                     return false;
                 await Task.Delay(ui.Profile.SpotMenuRetryWaitMs);
                 if (!ui.Profile.ProtectionEnabled)
@@ -3037,8 +3049,11 @@ sealed class MainForm : Form
             }
             if (npcSimilarity >= (double)ui.Profile.SpotWindowMinimumSimilarity)
             {
-                var point = Center(ui.Profile.NpcIconRegion);
-                if (!TryClickProfile(ui, point.X, point.Y, "Ícone NPC"))
+                if (!TryClickProfile(
+                        ui,
+                        ui.Profile.NpcIconPoint.X,
+                        ui.Profile.NpcIconPoint.Y,
+                        "Ícone NPC"))
                     return false;
             }
             await Task.Delay(ui.Profile.NpcWaitMs);
@@ -3078,9 +3093,8 @@ sealed class MainForm : Form
         return false;
     }
 
-    async Task<bool> WaitForBlackStateAsync(ProfileUi ui, bool black, int timeoutMs)
+    async Task<bool> WaitForBlackStateAsync(ProfileUi ui, bool black, DateTimeOffset deadline)
     {
-        var deadline = DateTimeOffset.Now.AddMilliseconds(timeoutMs);
         do
         {
             if (!ui.Profile.ProtectionEnabled)
@@ -3096,7 +3110,7 @@ sealed class MainForm : Form
                         return true;
                 }
             }
-            await Task.Delay(ui.Profile.TeleportToSpotDelayMs);
+            await Task.Delay(50);
         }
         while (DateTimeOffset.Now < deadline);
         return false;
@@ -3123,9 +3137,6 @@ sealed class MainForm : Form
         ui.DisposeImages();
         SetProfileStatus(ui, "Concluída", detail);
     }
-
-    static Point Center(ScreenRegion region) =>
-        new(region.X + region.Width / 2, region.Y + region.Height / 2);
 
     static bool IsBlackFrame(double contentPercent, double maximumContentPercent) =>
         contentPercent <= maximumContentPercent;
@@ -3338,7 +3349,7 @@ sealed class MainForm : Form
             return;
         }
         if (MessageBox.Show(this,
-                "Após confirmar, aguarde 5 segundos. Mantenha o jogo aberto; ele pode ficar coberto, mas não minimizado. O clique será enviado sem mover o cursor nem ativar a janela.",
+                "Após confirmar, aguarde 5 segundos. Mantenha o jogo aberto e não minimizado. Antes do clique, o Ronaldinho recuperará o foco da janela.",
                 Text,
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Information) != DialogResult.OK)
@@ -3351,7 +3362,7 @@ sealed class MainForm : Form
                 teleport.Y,
                 out var error))
         {
-            SetStatus("Clique em segundo plano enviado. Confira se o item de teleporte abriu.");
+            SetStatus("Foco recuperado e clique enviado. Confira se o item de teleporte abriu.");
             return;
         }
 
@@ -3616,11 +3627,15 @@ sealed class MainForm : Form
             ? $"✓ {ui.Profile.SpotWindowRegion.Width} × {ui.Profile.SpotWindowRegion.Height}"
             : "Não configurado";
         ui.SpotWindowStatus.ForeColor = spotWindowConfigured ? Acid : Coral;
-        var openConfigured = ui.Profile.SpotOpenIconRegion.IsConfigured && ui.SpotOpenIconReference is not null;
-        ui.SpotMenuStatus.Text = openConfigured ? "✓ Referência salva" : "Não configurado";
+        var openConfigured = ui.Profile.SpotOpenIconPoint.Configured
+                             && ui.Profile.SpotOpenIconRegion.IsConfigured
+                             && ui.SpotOpenIconReference is not null;
+        ui.SpotMenuStatus.Text = openConfigured ? "✓ Ponto selecionado" : "Não configurado";
         ui.SpotMenuStatus.ForeColor = openConfigured ? Acid : Coral;
-        var npcConfigured = ui.Profile.NpcIconRegion.IsConfigured && ui.NpcIconReference is not null;
-        ui.NpcIconStatus.Text = npcConfigured ? "✓ Referência salva" : "Não configurado";
+        var npcConfigured = ui.Profile.NpcIconPoint.Configured
+                            && ui.Profile.NpcIconRegion.IsConfigured
+                            && ui.NpcIconReference is not null;
+        ui.NpcIconStatus.Text = npcConfigured ? "✓ Ponto selecionado" : "Não configurado";
         ui.NpcIconStatus.ForeColor = npcConfigured ? Acid : Coral;
         ui.ConfirmTeleportStatus.Text = ui.Profile.ConfirmTeleportPoint.Configured ? "✓ Ponto selecionado" : "Não configurado";
         ui.ConfirmTeleportStatus.ForeColor = ui.Profile.ConfirmTeleportPoint.Configured ? Acid : Coral;
@@ -3871,6 +3886,9 @@ sealed class MainForm : Form
             throw new InvalidOperationException("Falha no estado de procura automática da barra.");
         if (!IsBlackFrame(0.5, 1) || IsBlackFrame(1.5, 1))
             throw new InvalidOperationException("Falha na detecção configurável de tela preta.");
+        var iconRegion = ReferenceRegion(new Point(5, 5), new Size(100, 80));
+        if (iconRegion.X != 0 || iconRegion.Y != 0 || iconRegion.Width != 48 || iconRegion.Height != 48)
+            throw new InvalidOperationException("Falha na referência visual automática ao redor do ponto.");
         var nextSearch = DateTimeOffset.UnixEpoch.AddSeconds(BarSearchIntervalSeconds);
         if (IsBarSearchDue(nextSearch.AddMilliseconds(-1), nextSearch)
             || !IsBarSearchDue(nextSearch, nextSearch))
@@ -3903,8 +3921,10 @@ sealed class MainForm : Form
         profile.SpotWindowReferencePng = [1];
         profile.SpotOpenIconRegion = new ScreenRegion { Width = 10, Height = 10 };
         profile.SpotOpenIconReferencePng = [1];
+        profile.SpotOpenIconPoint = new ClickPointConfig { Configured = true };
         profile.NpcIconRegion = new ScreenRegion { Width = 10, Height = 10 };
         profile.NpcIconReferencePng = [1];
+        profile.NpcIconPoint = new ClickPointConfig { Configured = true };
         profile.ConfirmTeleportPoint = new ClickPointConfig { Configured = true };
         profile.AutoPoint = new ClickPointConfig { Configured = true };
         profile.Spots.Add(new SpotConfig());

@@ -53,8 +53,10 @@ sealed class WindowProfile
     public byte[] SpotWindowReferencePng { get; set; } = [];
     public ScreenRegion SpotOpenIconRegion { get; set; } = new();
     public byte[] SpotOpenIconReferencePng { get; set; } = [];
+    public ClickPointConfig SpotOpenIconPoint { get; set; } = new();
     public ScreenRegion NpcIconRegion { get; set; } = new();
     public byte[] NpcIconReferencePng { get; set; } = [];
+    public ClickPointConfig NpcIconPoint { get; set; } = new();
     public ClickPointConfig ConfirmTeleportPoint { get; set; } = new();
     public ClickPointConfig AutoPoint { get; set; } = new();
     public BindingList<SpotConfig> Spots { get; set; } = [];
@@ -87,8 +89,10 @@ sealed class WindowProfile
                                         && SpotWindowReferencePng.Length > 0
                                         && SpotOpenIconRegion.IsConfigured
                                         && SpotOpenIconReferencePng.Length > 0
+                                        && SpotOpenIconPoint.Configured
                                         && NpcIconRegion.IsConfigured
                                         && NpcIconReferencePng.Length > 0
+                                        && NpcIconPoint.Configured
                                         && ConfirmTeleportPoint.Configured
                                         && AutoPoint.Configured
                                         && Spots.Any(spot => spot.Enabled)));
@@ -96,7 +100,7 @@ sealed class WindowProfile
 
 sealed class AppConfig
 {
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = 7;
     public int CaptureIntervalMs { get; set; } = 300;
     public bool InitialSetupCompleted { get; set; }
     public int SetupProfileIndex { get; set; }
@@ -105,7 +109,7 @@ sealed class AppConfig
 
     public void Normalize()
     {
-        SchemaVersion = 6;
+        SchemaVersion = 7;
         CaptureIntervalMs = Math.Clamp(CaptureIntervalMs, 100, 2000);
         SetupProfileIndex = Math.Clamp(SetupProfileIndex, 0, 1);
         SetupStepId = string.IsNullOrWhiteSpace(SetupStepId) ? "window" : SetupStepId;
@@ -131,8 +135,10 @@ sealed class AppConfig
             profile.SpotWindowReferencePng ??= [];
             profile.SpotOpenIconRegion ??= new ScreenRegion();
             profile.SpotOpenIconReferencePng ??= [];
+            profile.SpotOpenIconPoint ??= new ClickPointConfig();
             profile.NpcIconRegion ??= new ScreenRegion();
             profile.NpcIconReferencePng ??= [];
+            profile.NpcIconPoint ??= new ClickPointConfig();
             profile.ConfirmTeleportPoint ??= new ClickPointConfig();
             profile.AutoPoint ??= new ClickPointConfig();
             profile.Spots ??= [];
@@ -206,6 +212,21 @@ static class ConfigStore
                 }
                 warning = "O fluxo de proteção foi atualizado. Revise as novas marcações em Configuração guiada.";
             }
+            if (schemaVersion < 7)
+            {
+                foreach (var profile in config.Windows)
+                {
+                    profile.SpotOpenIconRegion ??= new ScreenRegion();
+                    profile.SpotOpenIconPoint ??= new ClickPointConfig();
+                    profile.NpcIconRegion ??= new ScreenRegion();
+                    profile.NpcIconPoint ??= new ClickPointConfig();
+                    if (profile.SpotOpenIconRegion.IsConfigured && !profile.SpotOpenIconPoint.Configured)
+                        profile.SpotOpenIconPoint = Center(profile.SpotOpenIconRegion);
+                    if (profile.NpcIconRegion.IsConfigured && !profile.NpcIconPoint.Configured)
+                        profile.NpcIconPoint = Center(profile.NpcIconRegion);
+                }
+                warning = "Os ícones Abrir Spots e NPC agora usam pontos de clique. Confira as marcações na Configuração guiada.";
+            }
             config.Normalize();
             return config;
         }
@@ -228,4 +249,11 @@ static class ConfigStore
             File.Copy(FilePath, FilePath + ".bak", true);
         File.Move(temporary, FilePath, true);
     }
+
+    static ClickPointConfig Center(ScreenRegion region) => new()
+    {
+        X = region.X + region.Width / 2,
+        Y = region.Y + region.Height / 2,
+        Configured = true
+    };
 }

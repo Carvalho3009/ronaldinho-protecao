@@ -1,6 +1,6 @@
 # Ronaldinho — Proteção por Barra de Vida
 
-**Versão 2.0.1 — Dibre a concorrência**
+**Versão 2.0.2 — Dibre a concorrência**
 
 A visão geral exibe lado a lado os status das duas janelas. Use os menus laterais para abrir a configuração da janela selecionada.
 
@@ -44,7 +44,7 @@ Repita estes passos nas abas **Janela 1** e **Janela 2** que desejar usar.
 
 1. Clique em **Janela** no menu lateral e selecione a janela correta na lista.
 2. Ative **Proteção ativa** para monitorá-la.
-3. Use **Segundo plano** para não mover o mouse nem entregar o foco ao jogo.
+3. Use **Segundo plano** para manter a captura ativa com a janela coberta. No momento de cada clique, o Ronaldinho recupera o foco do jogo para garantir o comando.
 
 A proteção pode ser ativada ou desativada individualmente durante a sessão. Desativar uma janela preserva o tempo e a posição atual da sequência; a outra continua funcionando.
 
@@ -85,8 +85,8 @@ Em **Rota de spots**, escolha **Parar após teleporte**. Quando o limite for ati
 Em **Rota de spots**, escolha **Rotação de spots** e configure:
 
 1. **Menu de spots**: a área visual que confirma que o menu abriu.
-2. **Ícone Abrir spots**: a área visual do ícone que abre o menu.
-3. **Ícone NPC**: a área visual do ícone usado quando **Abrir spots** ainda não aparece.
+2. **Ícone Abrir spots**: o ponto exato onde o programa deve clicar.
+3. **Ícone NPC**: o ponto exato onde o programa deve clicar quando **Abrir spots** ainda não aparece.
 4. **Botão Teleportar**: o ponto do botão de confirmação.
 5. **Botão Auto**: o ponto acionado depois da espera no novo spot.
 6. **Marcar Safe**: obrigatório porque, ao terminar todos os ciclos, a próxima reação leva ao Safe e pausa a janela.
@@ -96,7 +96,7 @@ Para substituir toda a rota de uma vez, use **Reiniciar spots**. Após a confirm
 
 Os spots podem ser ativados ou desativados durante a sessão. A sequência ignora os spots desmarcados.
 
-O fluxo confirma a tela preta após o teleporte inicial, aguarda o carregamento, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
+O fluxo começa a procurar a tela preta imediatamente após o clique no teleporte, aguarda o carregamento, procura **Abrir spots**, tenta o **NPC** quando necessário, confirma o fechamento do menu, espera no destino, clica em **Auto** e volta a observar a vida. Se uma etapa exceder as tentativas, somente aquela janela pausa.
 
 Em **Configurações**, todos os limites e tempos do fluxo podem ser ajustados, incluindo tentativas, semelhança visual, tela preta, carregamento, espera após NPC, nova tentativa do menu e espera após chegar ao spot.
 
